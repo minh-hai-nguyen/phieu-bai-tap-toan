@@ -175,10 +175,25 @@ async function doRegister() {
 document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 document.getElementById('regPass').addEventListener('keydown', e => { if(e.key==='Enter') doRegister(); });
 
-// Check if already logged in
-if (localStorage.getItem('token')) {
-  window.location.href = '/';
-}
+// Check if already logged in — verify token is still valid
+(async function checkExistingSession() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    if (res.ok) {
+      window.location.href = '/';
+    } else {
+      // Token expired or invalid — clear it
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+  } catch(e) {
+    // Network error — keep token, let user decide
+  }
+})();
 
 // Init language
 const savedLang = localStorage.getItem('lang');
