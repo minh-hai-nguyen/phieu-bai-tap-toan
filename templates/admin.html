@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — Toán Tiểu Học</title>
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+/* ─── ADMIN LAYOUT ─── */
+.admin-layout { display: flex; min-height: calc(100vh - 52px); }
+.admin-sidebar {
+  width: 220px; background: #1e293b; color: #e2e8f0; padding: 1rem 0;
+  position: sticky; top: 52px; height: calc(100vh - 52px); overflow-y: auto; flex-shrink: 0;
+}
+.admin-sidebar .nav-item {
+  padding: 10px 20px; cursor: pointer; font-size: 0.9rem; font-weight: 500;
+  display: flex; align-items: center; gap: 10px; transition: all 0.15s; border-left: 3px solid transparent;
+}
+.admin-sidebar .nav-item:hover { background: #334155; }
+.admin-sidebar .nav-item.active { background: #334155; border-left-color: var(--primary); color: #fff; }
+.admin-sidebar .nav-section {
+  padding: 8px 20px 4px; font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 1px; color: #94a3b8; margin-top: 0.5rem;
+}
+.admin-body { flex: 1; padding: 1.5rem; max-width: 1200px; overflow-x: auto; }
+
+/* ─── STAT CARDS ─── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card {
+  background: #fff; border-radius: var(--radius); padding: 1.2rem; border: 2px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.stat-card .stat-icon { font-size: 2rem; margin-bottom: 0.3rem; }
+.stat-card .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+.stat-card .stat-label { font-size: 0.82rem; color: var(--muted); }
+
+/* ─── DATA TABLE ─── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; background: #fff; border-radius: var(--radius); overflow: hidden; border: 2px solid var(--border); }
+.data-table th { background: var(--bg); font-weight: 700; text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+.data-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.data-table tr:hover td { background: #f1f5f9; }
+.data-table .actions { display: flex; gap: 4px; }
+
+/* ─── FILTER BAR ─── */
+.filter-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #fff; padding: 0.8rem 1rem; border-radius: var(--radius);
+  border: 2px solid var(--border); margin-bottom: 1rem;
+}
+.filter-bar label { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+.filter-bar select, .filter-bar input {
+  padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px;
+  font-size: 0.88rem; outline: none;
+}
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--primary); }
+
+/* ─── BADGE ─── */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; }
+.badge-admin { background: var(--warning-light); color: #92400e; }
+.badge-student { background: var(--primary-light); color: var(--primary-dark); }
+.badge-active { background: var(--success-light); color: var(--success); }
+.badge-inactive { background: var(--danger-light); color: var(--danger); }
+.badge-grade { background: var(--purple-light); color: var(--purple); }
+
+/* ─── CHARTS (simple CSS bars) ─── */
+.bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; margin: 1rem 0; }
+.bar-chart .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+.bar-chart .bar { width: 100%; max-width: 50px; background: var(--primary); border-radius: 6px 6px 0 0; transition: height 0.5s; }
+.bar-chart .bar-label { font-size: 0.72rem; color: var(--muted); margin-top: 4px; font-weight: 600; }
+.bar-chart .bar-value { font-size: 0.72rem; font-weight: 700; margin-bottom: 2px; }
+
+/* ─── IMAGE GALLERY ─── */
+.img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.img-card {
+  border: 2px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer;
+  transition: all 0.15s; position: relative; background: #fff;
+}
+.img-card:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.img-card img { width: 100%; height: 100px; object-fit: contain; background: #f8fafc; }
+.img-card .img-name { padding: 4px 6px; font-size: 0.7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.img-card .img-copy { position: absolute; top: 4px; right: 4px; background: var(--primary); color: #fff; border: none; border-radius: 4px; font-size: 0.65rem; padding: 2px 6px; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+.img-card:hover .img-copy { opacity: 1; }
+.folder-card {
+  border: 2px dashed var(--border); border-radius: 8px; padding: 1rem; text-align: center;
+  cursor: pointer; transition: all 0.15s;
+}
+.folder-card:hover { border-color: var(--primary); background: var(--primary-light); }
+.drop-zone {
+  border: 3px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center;
+  color: var(--muted); transition: all 0.2s; cursor: pointer; margin-bottom: 1rem;
+}
+.drop-zone.dragover { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+
+/* ─── TEMPLATE CARDS ─── */
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+.tpl-card {
+  background: #fff; border: 2px solid var(--border); border-radius: var(--radius);
+  padding: 1.2rem; transition: all 0.2s; cursor: default;
+}
+.tpl-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.tpl-card .tpl-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }
+.tpl-card .tpl-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.8rem; line-height: 1.4; }
+.tpl-card .tpl-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0.8rem; }
+.tpl-card .tpl-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; background: var(--bg); color: var(--muted); }
+.tpl-card .tpl-actions { display: flex; gap: 6px; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+.tpl-sample { background: var(--bg); border-radius: 8px; padding: 0.8rem; margin-top: 0.5rem; font-size: 0.82rem; }
+.tpl-sample h4 { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .admin-layout { flex-direction: column; }
+  .admin-sidebar {
+    width: 100%; position: static; height: auto;
+    display: flex; overflow-x: auto; padding: 0;
+  }
+  .admin-sidebar .nav-section { display: none; }
+  .admin-sidebar .nav-item { padding: 10px 14px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
+  .admin-sidebar .nav-item.active { border-bottom-color: var(--primary); }
+  .admin-body { padding: 0.8rem; }
+  .data-table { font-size: 0.8rem; }
+  .data-table td, .data-table th { padding: 6px 8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-logo">🛡️ Admin Panel — Toán Tiểu Học</span>
+  </div>
+  <div class="topbar-right">
+    <a href="/" class="btn btn-sm btn-outline" style="text-decoration:none;">📐 Về trang chính</a>
+    <div class="user-badge" id="userBadge"></div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">🚪</button>
+  </div>
+</div>
+
+<div class="admin-layout">
+  <!-- SIDEBAR -->
+  <div class="admin-sidebar" id="sidebar">
+    <div class="nav-section">Tổng quan</div>
+    <div class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</div>
+    <div class="nav-section">Quản lý</div>
+    <div class="nav-item" data-tab="exercises" onclick="switchTab('exercises')">📝 Bài tập</div>
+    <div class="nav-item" data-tab="users" onclick="switchTab('users')">👥 Người dùng</div>
+    <div class="nav-item" data-tab="results" onclick="switchTab('results')">📈 Kết quả</div>
+    <div class="nav-section">Thư viện</div>
+    <div class="nav-item" data-tab="templates" onclick="switchTab('templates')">📦 Kho dạng bài</div>
+    <div class="nav-item" data-tab="images" onclick="switchTab('images')">🖼️ Kho hình ảnh</div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="admin-body" id="adminBody">
+    <div style="text-align:center; padding:3rem;">Đang tải...</div>
+  </div>
+</div>
+
+<!-- USER MODAL -->
+<div class="modal-overlay hidden" id="userModal">
+  <div class="modal">
+    <h2 id="userModalTitle">Thêm người dùng</h2>
+    <div id="userModalForm"></div>
+    <div style="display:flex; gap:8px; margin-top:1rem;">
+      <button class="btn btn-success" onclick="saveUser()">Lưu</button>
+      <button class="btn btn-ghost" onclick="closeModal('userModal')" style="margin-left:auto;">Hủy</button>
+    </div>
+  </div>
+</div>
+
+<!-- TEMPLATE MODAL -->
+<div class="modal-overlay hidden" id="templateModal">
+  <div class="modal" style="max-width:900px;">
+    <h2 id="tplModalTitle">Xem dạng bài</h2>
+    <div id="tplModalForm"></div>
+    <div style="display:flex; gap:8px; margin-top:1rem;">
+      <button class="btn btn-success" onclick="saveTemplate()">Lưu</button>
+      <button class="btn btn-ghost" onclick="closeModal('templateModal')" style="margin-left:auto;">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- USE TEMPLATE MODAL -->
+<div class="modal-overlay hidden" id="useTemplateModal">
+  <div class="modal" style="max-width:800px;">
+    <h2 id="useTplTitle">Tạo bài tập từ mẫu</h2>
+    <div id="useTplForm"></div>
+    <div style="display:flex; gap:8px; margin-top:1rem;">
+      <button class="btn btn-success" onclick="submitFromTemplate()">Tạo bài tập</button>
+      <button class="btn btn-ghost" onclick="closeModal('useTemplateModal')" style="margin-left:auto;">Hủy</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXERCISE MODAL -->
+<div class="modal-overlay hidden" id="exerciseModal">
+  <div class="modal" style="max-width:800px;">
+    <h2 id="exModalTitle">Thêm bài tập</h2>
+    <div id="exModalForm"></div>
+    <div style="display:flex; gap:8px; margin-top:1rem;">
+      <button class="btn btn-success" onclick="saveExerciseAdmin()">Lưu</button>
+      <button class="btn btn-ghost" onclick="closeModal('exerciseModal')" style="margin-left:auto;">Hủy</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN LOGIN OVERLAY -->
+<div class="modal-overlay" id="adminLoginOverlay" style="z-index:9999;background:rgba(15,23,42,0.95);">
+  <div style="background:#fff;border-radius:16px;padding:2rem;width:340px;max-width:90vw;text-align:center;">
+    <div style="font-size:2.5rem;margin-bottom:0.5rem;">🛡️</div>
+    <h2 style="margin-bottom:0.3rem;">Đăng nhập Admin</h2>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1.2rem;">Toán Tiểu Học — Quản trị hệ thống</p>
+    <div style="text-align:left;">
+      <div class="form-group"><label>Tài khoản</label><input class="form-input" id="adminUsername" placeholder="admin" autocomplete="username"></div>
+      <div class="form-group"><label>Mật khẩu</label><input class="form-input" id="adminPassword" type="password" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')adminLogin()"></div>
+    </div>
+    <p id="adminLoginErr" style="color:var(--danger);font-size:0.85rem;min-height:1.2rem;margin:0.3rem 0;"></p>
+    <button class="btn btn-primary" onclick="adminLogin()" style="width:100%;margin-top:0.5rem;">Đăng nhập</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+function getToken() { return localStorage.getItem('admin_token'); }
+function authHeaders() { return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }; }
+
+function checkAuth() {
+  const token = getToken();
+  const user = localStorage.getItem('admin_user');
+  if (!token || !user) { showAdminLogin(); return; }
+  const u = JSON.parse(user);
+  if (u.role !== 'admin') { showAdminLogin('Tài khoản không có quyền admin.'); return; }
+  document.getElementById('userBadge').textContent = '🛡️ ' + u.display_name;
+  document.getElementById('adminLoginOverlay').classList.add('hidden');
+}
+
+function logout() {
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_user');
+  showAdminLogin();
+}
+
+function showAdminLogin(errMsg) {
+  const overlay = document.getElementById('adminLoginOverlay');
+  overlay.classList.remove('hidden');
+  if (errMsg) document.getElementById('adminLoginErr').textContent = errMsg;
+}
+
+async function adminLogin() {
+  const username = document.getElementById('adminUsername').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const errEl = document.getElementById('adminLoginErr');
+  errEl.textContent = '';
+  if (!username || !password) { errEl.textContent = 'Nhập tài khoản và mật khẩu.'; return; }
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.detail || 'Sai tài khoản hoặc mật khẩu.'; return; }
+    if (data.user.role !== 'admin') { errEl.textContent = 'Tài khoản này không có quyền admin.'; return; }
+    localStorage.setItem('admin_token', data.token);
+    localStorage.setItem('admin_user', JSON.stringify(data.user));
+    document.getElementById('adminLoginOverlay').classList.add('hidden');
+    document.getElementById('userBadge').textContent = '🛡️ ' + data.user.display_name;
+    switchTab('dashboard');
+  } catch(e) { errEl.textContent = 'Lỗi kết nối: ' + e.message; }
+}
+
+// ═══════════════════════════════════════════
+// TAB NAVIGATION
+// ═══════════════════════════════════════════
+let currentTab = 'dashboard';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.tab === tab));
+  const body = document.getElementById('adminBody');
+  body.innerHTML = '<div style="text-align:center; padding:2rem;">Đang tải...</div>';
+
+  switch(tab) {
+    case 'dashboard': loadDashboard(); break;
+    case 'exercises': loadExercises(); break;
+    case 'users': loadUsers(); break;
+    case 'results': loadResults(); break;
+    case 'templates': loadTemplates(); break;
+    case 'images': loadImages(); break;
+  }
+}
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function formatDate(d) {
+  if (!d) return '—';
+  return d.replace('T',' ').substring(0, 16);
+}
+
+const typeLabels = {
+  fill_in: '✏️ Điền số',
+  true_false: '✅ Đúng/Sai',
+  multiple_choice: '🔘 Trắc nghiệm',
+  matching: '🔗 Nối',
+  table_fill: '📋 Bảng',
+  word_problem: '📖 Bài toán',
+  coloring: '🎨 Tô màu',
+  number_pyramid: '🔺 Tháp số',
+  matchstick_puzzle: '🔥 Que diêm',
+  image_equations: '🖼️ Viết PT từ hình',
+  classify_match: '🏷️ Phân loại nối',
+  image_exercise: '🖼️ Hình ảnh',
+};
+
+const sectionLabels = {
+  kham_pha: 'A. Khám phá',
+  hoat_dong: 'B. Hoạt động',
+  cung_co: 'C. Củng cố',
+  toan_vui: 'D. Toán vui',
+  practice: 'Luyện tập',
+};
+
+// ═══════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════
+async function loadDashboard() {
+  const body = document.getElementById('adminBody');
+  try {
+    const res = await fetch('/api/admin/stats', { headers: authHeaders() });
+    const data = await res.json();
+
+    let html = '<h2 style="margin-bottom:1rem;">📊 Dashboard</h2>';
+
+    // Stat cards
+    html += '<div class="stat-grid">';
+    html += statCard('👥', data.total_students, 'Học sinh');
+    html += statCard('🛡️', data.total_admins, 'Admin');
+    html += statCard('📝', data.total_exercises, 'Bài tập');
+    html += statCard('📈', data.total_submissions, 'Lượt nộp bài');
+    html += '</div>';
+
+    // Bar chart: exercises by grade
+    html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">';
+    html += '<div class="stat-card"><h3 style="font-size:0.95rem; margin-bottom:0.5rem;">📊 Bài tập theo lớp</h3>';
+    html += '<div class="bar-chart">';
+    const maxEx = Math.max(...data.exercises_by_grade.map(g => g.cnt), 1);
+    for (let lop = 1; lop <= 5; lop++) {
+      const g = data.exercises_by_grade.find(x => x.lop === lop);
+      const cnt = g ? g.cnt : 0;
+      const h = Math.max(cnt / maxEx * 100, 4);
+      html += `<div class="bar-col"><div class="bar-value">${cnt}</div><div class="bar" style="height:${h}%; background:var(--g${lop});"></div><div class="bar-label">Lớp ${lop}</div></div>`;
+    }
+    html += '</div></div>';
+
+    // Empty weeks
+    html += '<div class="stat-card"><h3 style="font-size:0.95rem; margin-bottom:0.5rem;">⚠️ Tuần chưa có bài tập</h3>';
+    html += '<div style="margin-top:0.5rem;">';
+    for (let lop = 1; lop <= 5; lop++) {
+      const empty = data.empty_weeks_by_grade[String(lop)] || 0;
+      const filled = 35 - empty;
+      const pct = Math.round(filled / 35 * 100);
+      html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <span style="width:50px; font-weight:600; font-size:0.85rem;">Lớp ${lop}</span>
+        <div style="flex:1; height:18px; background:var(--bg); border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:var(--g${lop}); border-radius:4px; transition:width 0.5s;"></div>
+        </div>
+        <span style="font-size:0.78rem; color:var(--muted); width:80px;">${filled}/35 tuần</span>
+      </div>`;
+    }
+    html += '</div></div></div>';
+
+    // Recent submissions
+    html += '<div class="stat-card" style="margin-top:1rem;"><h3 style="font-size:0.95rem; margin-bottom:0.8rem;">🕐 Nộp bài gần đây</h3>';
+    if (data.recent_submissions.length === 0) {
+      html += '<p style="color:var(--muted); font-size:0.88rem;">Chưa có lượt nộp bài nào.</p>';
+    } else {
+      html += '<table class="data-table"><thead><tr><th>Học sinh</th><th>Bài</th><th>Lớp</th><th>Tuần</th><th>Điểm</th><th>Thời gian</th></tr></thead><tbody>';
+      data.recent_submissions.forEach(r => {
+        const pct = r.total > 0 ? Math.round(r.score / r.total * 100) : 0;
+        const color = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+        html += `<tr>
+          <td>${escHtml(r.display_name)}</td>
+          <td>${escHtml(r.title_vi)}</td>
+          <td><span class="badge badge-grade">Lớp ${r.lop}</span></td>
+          <td>T${r.tuan}</td>
+          <td><strong style="color:${color}">${r.score}/${r.total}</strong></td>
+          <td style="font-size:0.8rem; color:var(--muted);">${formatDate(r.completed_at)}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = `<div style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+function statCard(icon, value, label) {
+  return `<div class="stat-card">
+    <div class="stat-icon">${icon}</div>
+    <div class="stat-value">${value}</div>
+    <div class="stat-label">${label}</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+// EXERCISES TAB
+// ═══════════════════════════════════════════
+let exFilterLop = '';
+let exFilterTuan = '';
+let exFilterType = '';
+let exFilterActive = '1';
+
+async function loadExercises() {
+  const body = document.getElementById('adminBody');
+
+  let html = '<h2 style="margin-bottom:1rem;">📝 Quản lý bài tập</h2>';
+
+  // Filter bar
+  html += `<div class="filter-bar">
+    <label>Lớp:</label>
+    <select id="fLop" onchange="exFilterLop=this.value; loadExerciseTable()">
+      <option value="">Tất cả</option>
+      ${[1,2,3,4,5].map(l => `<option value="${l}" ${exFilterLop==l?'selected':''}>Lớp ${l}</option>`).join('')}
+    </select>
+    <label>Tuần:</label>
+    <input id="fTuan" type="number" min="1" max="37" style="width:60px;" value="${exFilterTuan}" placeholder="—" onchange="exFilterTuan=this.value; loadExerciseTable()">
+    <label>Loại:</label>
+    <select id="fType" onchange="exFilterType=this.value; loadExerciseTable()">
+      <option value="">Tất cả</option>
+      ${Object.entries(typeLabels).map(([k,v]) => `<option value="${k}" ${exFilterType===k?'selected':''}>${v}</option>`).join('')}
+    </select>
+    <label>Trạng thái:</label>
+    <select id="fActive" onchange="exFilterActive=this.value; loadExerciseTable()">
+      <option value="1" ${exFilterActive==='1'?'selected':''}>Đang hoạt động</option>
+      <option value="0" ${exFilterActive==='0'?'selected':''}>Đã ẩn</option>
+      <option value="" ${exFilterActive===''?'selected':''}>Tất cả</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="openExerciseEditor(null)" style="margin-left:auto;">➕ Thêm bài tập</button>
+  </div>`;
+
+  html += '<div id="exTable">Đang tải...</div>';
+  body.innerHTML = html;
+  loadExerciseTable();
+}
+
+async function loadExerciseTable() {
+  const container = document.getElementById('exTable');
+  let url = '/api/admin/exercises?';
+  if (exFilterLop) url += `lop=${exFilterLop}&`;
+  if (exFilterTuan) url += `tuan=${exFilterTuan}&`;
+  if (exFilterType) url += `exercise_type=${exFilterType}&`;
+  if (exFilterActive !== '') url += `is_active=${exFilterActive}&`;
+
+  try {
+    const res = await fetch(url, { headers: authHeaders() });
+    const data = await res.json();
+    const exercises = data.exercises || [];
+
+    if (exercises.length === 0) {
+      container.innerHTML = '<div class="stat-card text-center" style="padding:2rem;"><p style="color:var(--muted);">Không có bài tập nào.</p></div>';
+      return;
+    }
+
+    let html = `<p style="font-size:0.85rem; color:var(--muted); margin-bottom:0.5rem;">Tổng: <strong>${exercises.length}</strong> bài tập</p>`;
+    html += '<table class="data-table"><thead><tr><th>ID</th><th>Lớp</th><th>Tuần</th><th>Section</th><th>Loại</th><th>Tiêu đề</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>';
+
+    exercises.forEach(ex => {
+      const active = ex.is_active ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Hidden</span>';
+      const type = typeLabels[ex.exercise_type] || ex.exercise_type;
+      const sec = sectionLabels[ex.section] || ex.section;
+      html += `<tr>
+        <td><strong>${ex.id}</strong></td>
+        <td><span class="badge badge-grade">Lớp ${ex.lop}</span></td>
+        <td>T${ex.tuan}</td>
+        <td style="font-size:0.8rem;">${sec}</td>
+        <td style="font-size:0.8rem;">${type}</td>
+        <td>${escHtml(ex.title_vi)}</td>
+        <td>${active}</td>
+        <td class="actions">
+          <button class="btn btn-sm btn-outline" onclick="openExerciseEditor(${ex.id})" title="Sửa">✏️</button>
+          ${ex.is_active
+            ? `<button class="btn btn-sm btn-danger" onclick="toggleExercise(${ex.id}, false)" title="Ẩn">🗑</button>`
+            : `<button class="btn btn-sm btn-success" onclick="toggleExercise(${ex.id}, true)" title="Khôi phục">♻️</button>`
+          }
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+let editingExId = null;
+
+async function openExerciseEditor(id) {
+  editingExId = id;
+  const modal = document.getElementById('exerciseModal');
+  const form = document.getElementById('exModalForm');
+  document.getElementById('exModalTitle').textContent = id ? `Sửa bài tập #${id}` : 'Thêm bài tập mới';
+
+  const exerciseTypes = Object.entries(typeLabels).map(([k,v]) => ({value:k, label:v}));
+  const sections = Object.entries(sectionLabels).map(([k,v]) => ({value:k, label:v}));
+
+  let data = {
+    lop: parseInt(exFilterLop) || 1,
+    tuan: parseInt(exFilterTuan) || 1,
+    section: 'practice',
+    sort_order: 0,
+    exercise_type: 'fill_in',
+    title_vi: '', title_en: '',
+    instruction_vi: '', instruction_en: '',
+    hint_vi: '', hint_en: '',
+    config: {},
+    images: [],
+    yccd_ids: '',
+  };
+
+  if (id) {
+    try {
+      const res = await fetch(`/api/exercises/${id}`, { headers: authHeaders() });
+      if (res.ok) data = await res.json();
+    } catch(e) {}
+  }
+
+  form.innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.5rem;">
+      <div class="form-group"><label>Lớp</label><input class="form-input" id="exLop" type="number" min="1" max="5" value="${data.lop}"></div>
+      <div class="form-group"><label>Tuần</label><input class="form-input" id="exTuan" type="number" min="1" max="37" value="${data.tuan}"></div>
+      <div class="form-group"><label>Thứ tự</label><input class="form-input" id="exSort" type="number" value="${data.sort_order || 0}"></div>
+      <div class="form-group"><label>Section</label>
+        <select class="form-input" id="exSection">${sections.map(s => `<option value="${s.value}" ${s.value===data.section?'selected':''}>${s.label}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-group"><label>Loại bài tập</label>
+      <select class="form-input" id="exType">${exerciseTypes.map(t => `<option value="${t.value}" ${t.value===data.exercise_type?'selected':''}>${t.label}</option>`).join('')}</select>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group"><label>Tiêu đề (VI)</label><input class="form-input" id="exTitleVi" value="${escHtml(data.title_vi||'')}"></div>
+      <div class="form-group"><label>Title (EN)</label><input class="form-input" id="exTitleEn" value="${escHtml(data.title_en||'')}"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group"><label>Hướng dẫn (VI)</label><textarea class="form-input" id="exInstrVi" rows="2">${escHtml(data.instruction_vi||'')}</textarea></div>
+      <div class="form-group"><label>Instruction (EN)</label><textarea class="form-input" id="exInstrEn" rows="2">${escHtml(data.instruction_en||'')}</textarea></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group"><label>Gợi ý (VI)</label><input class="form-input" id="exHintVi" value="${escHtml(data.hint_vi||'')}"></div>
+      <div class="form-group"><label>Hint (EN)</label><input class="form-input" id="exHintEn" value="${escHtml(data.hint_en||'')}"></div>
+    </div>
+    <div class="form-group"><label>Config (JSON)</label>
+      <textarea class="form-input" id="exConfig" rows="8" style="font-family:monospace; font-size:0.82rem;">${JSON.stringify(data.config || {}, null, 2)}</textarea>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group"><label>Hình ảnh (JSON array)</label>
+        <input class="form-input" id="exImages" value='${JSON.stringify(data.images || [])}'>
+      </div>
+      <div class="form-group"><label>YCCĐ IDs (dấu phẩy)</label>
+        <input class="form-input" id="exYccd" value="${escHtml(data.yccd_ids||'')}">
+      </div>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+}
+
+async function saveExerciseAdmin() {
+  let config, images;
+  try {
+    config = JSON.parse(document.getElementById('exConfig').value);
+  } catch(e) { alert('Config JSON không hợp lệ: ' + e.message); return; }
+  try {
+    images = JSON.parse(document.getElementById('exImages').value);
+  } catch(e) { images = []; }
+
+  const payload = {
+    lop: parseInt(document.getElementById('exLop').value),
+    tuan: parseInt(document.getElementById('exTuan').value),
+    section: document.getElementById('exSection').value,
+    sort_order: parseInt(document.getElementById('exSort').value),
+    exercise_type: document.getElementById('exType').value,
+    title_vi: document.getElementById('exTitleVi').value,
+    title_en: document.getElementById('exTitleEn').value,
+    instruction_vi: document.getElementById('exInstrVi').value,
+    instruction_en: document.getElementById('exInstrEn').value,
+    hint_vi: document.getElementById('exHintVi').value,
+    hint_en: document.getElementById('exHintEn').value,
+    config,
+    images,
+    yccd_ids: document.getElementById('exYccd').value,
+  };
+
+  try {
+    let res;
+    if (editingExId) {
+      res = await fetch(`/api/admin/exercises/${editingExId}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload) });
+    } else {
+      res = await fetch('/api/admin/exercises', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    }
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Lỗi'); return; }
+    closeModal('exerciseModal');
+    loadExerciseTable();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function toggleExercise(id, activate) {
+  const msg = activate ? 'Khôi phục bài tập này?' : 'Ẩn bài tập này?';
+  if (!confirm(msg)) return;
+  try {
+    if (activate) {
+      await fetch(`/api/admin/exercises/${id}/restore`, { method: 'POST', headers: authHeaders() });
+    } else {
+      await fetch(`/api/admin/exercises/${id}`, { method: 'DELETE', headers: authHeaders() });
+    }
+    loadExerciseTable();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+
+// ═══════════════════════════════════════════
+// USERS TAB
+// ═══════════════════════════════════════════
+async function loadUsers() {
+  const body = document.getElementById('adminBody');
+  try {
+    const res = await fetch('/api/admin/users', { headers: authHeaders() });
+    const data = await res.json();
+    const users = data.users || [];
+
+    let html = '<h2 style="margin-bottom:1rem;">👥 Quản lý người dùng</h2>';
+    html += `<div style="margin-bottom:1rem;">
+      <button class="btn btn-primary btn-sm" onclick="openUserEditor(null)">➕ Thêm người dùng</button>
+    </div>`;
+
+    html += '<table class="data-table"><thead><tr><th>ID</th><th>Tài khoản</th><th>Tên hiển thị</th><th>Vai trò</th><th>Lớp</th><th>Lượt nộp</th><th>Tổng điểm</th><th>Ngày tạo</th><th>Hành động</th></tr></thead><tbody>';
+
+    users.forEach(u => {
+      const role = u.role === 'admin'
+        ? '<span class="badge badge-admin">Admin</span>'
+        : '<span class="badge badge-student">Học sinh</span>';
+      const pct = u.total_possible > 0 ? Math.round(u.total_score / u.total_possible * 100) : 0;
+      html += `<tr>
+        <td>${u.id}</td>
+        <td><strong>${escHtml(u.username)}</strong></td>
+        <td>${escHtml(u.display_name)}</td>
+        <td>${role}</td>
+        <td><span class="badge badge-grade">Lớp ${u.lop || '—'}</span></td>
+        <td>${u.total_submissions}</td>
+        <td>${u.total_score}${u.total_possible > 0 ? ` (${pct}%)` : ''}</td>
+        <td style="font-size:0.8rem; color:var(--muted);">${formatDate(u.created_at)}</td>
+        <td class="actions">
+          <button class="btn btn-sm btn-outline" onclick="openUserEditor(${u.id}, '${escHtml(u.username)}', '${escHtml(u.display_name)}', '${u.role}', ${u.lop||1})">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id}, '${escHtml(u.username)}')">🗑</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = `<div style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+let editingUserId = null;
+
+function openUserEditor(id, username, displayName, role, lop) {
+  editingUserId = id;
+  const modal = document.getElementById('userModal');
+  const form = document.getElementById('userModalForm');
+  document.getElementById('userModalTitle').textContent = id ? `Sửa: ${username}` : 'Thêm người dùng mới';
+
+  form.innerHTML = `
+    ${!id ? `<div class="form-group"><label>Tài khoản</label><input class="form-input" id="uUsername" value=""></div>` : ''}
+    <div class="form-group"><label>Tên hiển thị</label><input class="form-input" id="uDisplayName" value="${escHtml(displayName||'')}"></div>
+    <div class="form-group"><label>${id ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu'}</label><input class="form-input" id="uPassword" type="password" value=""></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group"><label>Vai trò</label>
+        <select class="form-input" id="uRole">
+          <option value="student" ${role==='student'||!role?'selected':''}>Học sinh</option>
+          <option value="admin" ${role==='admin'?'selected':''}>Admin</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Lớp</label>
+        <select class="form-input" id="uLop">
+          ${[1,2,3,4,5].map(l => `<option value="${l}" ${(lop||1)==l?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+}
+
+async function saveUser() {
+  const payload = {
+    display_name: document.getElementById('uDisplayName').value,
+    role: document.getElementById('uRole').value,
+    lop: parseInt(document.getElementById('uLop').value),
+  };
+  const pw = document.getElementById('uPassword').value;
+
+  try {
+    let res;
+    if (editingUserId) {
+      if (pw) payload.password = pw;
+      res = await fetch(`/api/admin/users/${editingUserId}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload) });
+    } else {
+      const username = document.getElementById('uUsername').value;
+      if (!username || !pw) { alert('Tài khoản và mật khẩu là bắt buộc'); return; }
+      payload.username = username;
+      payload.password = pw;
+      res = await fetch('/api/admin/users', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    }
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Lỗi'); return; }
+    closeModal('userModal');
+    loadUsers();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Xóa người dùng "${username}"? Tất cả kết quả bài tập sẽ bị xóa.`)) return;
+  try {
+    const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Lỗi'); return; }
+    loadUsers();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+
+// ═══════════════════════════════════════════
+// RESULTS TAB
+// ═══════════════════════════════════════════
+let resFilterLop = '';
+let resFilterUser = '';
+
+async function loadResults() {
+  const body = document.getElementById('adminBody');
+
+  let html = '<h2 style="margin-bottom:1rem;">📈 Kết quả bài tập</h2>';
+  html += `<div class="filter-bar">
+    <label>Lớp:</label>
+    <select onchange="resFilterLop=this.value; loadResultsTable()">
+      <option value="">Tất cả</option>
+      ${[1,2,3,4,5].map(l => `<option value="${l}">Lớp ${l}</option>`).join('')}
+    </select>
+    <label>User ID:</label>
+    <input type="number" style="width:70px;" placeholder="—" onchange="resFilterUser=this.value; loadResultsTable()">
+  </div>`;
+  html += '<div id="resTable">Đang tải...</div>';
+  body.innerHTML = html;
+  loadResultsTable();
+}
+
+async function loadResultsTable() {
+  const container = document.getElementById('resTable');
+  let url = '/api/admin/results?limit=100';
+  if (resFilterLop) url += `&lop=${resFilterLop}`;
+  if (resFilterUser) url += `&user_id=${resFilterUser}`;
+
+  try {
+    const res = await fetch(url, { headers: authHeaders() });
+    const data = await res.json();
+    const results = data.results || [];
+
+    if (results.length === 0) {
+      container.innerHTML = '<div class="stat-card text-center" style="padding:2rem;"><p style="color:var(--muted);">Không có kết quả nào.</p></div>';
+      return;
+    }
+
+    let html = `<p style="font-size:0.85rem; color:var(--muted); margin-bottom:0.5rem;">Tổng: <strong>${results.length}</strong> kết quả</p>`;
+    html += '<table class="data-table"><thead><tr><th>ID</th><th>Học sinh</th><th>Bài tập</th><th>Lớp</th><th>Tuần</th><th>Điểm</th><th>%</th><th>Thời gian</th><th></th></tr></thead><tbody>';
+
+    results.forEach(r => {
+      const pct = r.total > 0 ? Math.round(r.score / r.total * 100) : 0;
+      const color = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+      const bar = `<div style="width:60px; height:6px; background:var(--bg); border-radius:3px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:${color}; border-radius:3px;"></div></div>`;
+      html += `<tr>
+        <td>${r.id}</td>
+        <td>${escHtml(r.display_name)}<br><small style="color:var(--muted);">${escHtml(r.username)}</small></td>
+        <td>${escHtml(r.title_vi)}<br><small style="color:var(--muted);">${typeLabels[r.exercise_type]||r.exercise_type}</small></td>
+        <td><span class="badge badge-grade">Lớp ${r.lop}</span></td>
+        <td>T${r.tuan}</td>
+        <td><strong style="color:${color}">${r.score}/${r.total}</strong></td>
+        <td>${bar}</td>
+        <td style="font-size:0.8rem; color:var(--muted);">${formatDate(r.completed_at)}</td>
+        <td><button class="btn btn-sm btn-ghost" onclick="deleteResult(${r.id})" title="Xóa">🗑</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+async function deleteResult(id) {
+  if (!confirm('Xóa kết quả này?')) return;
+  try {
+    await fetch(`/api/admin/results/${id}`, { method: 'DELETE', headers: authHeaders() });
+    loadResultsTable();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+
+// ═══════════════════════════════════════════
+// TEMPLATES TAB (Kho dạng bài)
+// ═══════════════════════════════════════════
+
+async function loadTemplates() {
+  const body = document.getElementById('adminBody');
+  try {
+    const res = await fetch('/api/admin/templates', { headers: authHeaders() });
+    const data = await res.json();
+    const templates = data.templates || [];
+
+    let html = '<h2 style="margin-bottom:1rem;">📦 Kho dạng bài tập</h2>';
+    html += '<p style="font-size:0.88rem; color:var(--muted); margin-bottom:1rem;">Mỗi dạng bài là một khuôn mẫu có thể dùng để tạo nhanh bài tập mới. Xem mẫu, chỉnh sửa dữ liệu rồi tạo bài tập.</p>';
+
+    if (templates.length === 0) {
+      html += '<div class="stat-card" style="padding:2rem; text-align:center;"><p style="color:var(--muted);">Chưa có dạng bài nào trong kho.</p></div>';
+    } else {
+      html += '<div class="tpl-grid">';
+      templates.forEach(tpl => {
+        const tags = (tpl.tags || []).map(t => `<span class="tpl-tag">${escHtml(t)}</span>`).join('');
+        const grades = (tpl.applicable_grades || []).map(g => `<span class="badge badge-grade" style="font-size:0.68rem;">L${g}</span>`).join(' ');
+        const typeLabel = typeLabels[tpl.exercise_type] || tpl.exercise_type;
+
+        // Build sample preview
+        let samplePreview = '';
+        if (tpl.sample_config && Object.keys(tpl.sample_config).length > 0) {
+          samplePreview = renderTemplateSample(tpl);
+        }
+
+        html += `<div class="tpl-card">
+          <div class="tpl-name">${escHtml(tpl.name)}</div>
+          <div class="tpl-desc">${escHtml(tpl.description)}</div>
+          <div class="tpl-meta">
+            <span class="tpl-tag" style="background:var(--primary-light); color:var(--primary-dark);">${typeLabel}</span>
+            ${tags} ${grades}
+          </div>
+          ${samplePreview}
+          <div class="tpl-actions">
+            <button class="btn btn-primary btn-sm" onclick="useTemplate(${tpl.id})">📝 Tạo bài tập</button>
+            <button class="btn btn-outline btn-sm" onclick="viewTemplate(${tpl.id})">👁 Xem chi tiết</button>
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = `<div style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+function renderTemplateSample(tpl) {
+  const cfg = tpl.sample_config;
+  let inner = '';
+
+  if (tpl.exercise_type === 'fill_in' && cfg.items) {
+    inner = cfg.items.slice(0, 4).map(item => {
+      const expr = (item.expression || '').replace(/\s*=\s*$/, '');
+      return `<span style="margin-right:12px;">${escHtml(expr)} = <strong style="color:var(--primary);">${escHtml(item.answer)}</strong></span>`;
+    }).join('');
+    if (cfg.items.length > 4) inner += `<span style="color:var(--muted);">… (+${cfg.items.length - 4})</span>`;
+  } else if (tpl.exercise_type === 'true_false' && cfg.statements) {
+    inner = cfg.statements.slice(0, 3).map(s => {
+      const icon = s.answer === 'Đ' ? '✅' : '❌';
+      return `<div>${icon} ${escHtml(s.text_vi)} → <strong>${s.answer}</strong></div>`;
+    }).join('');
+    if (cfg.statements.length > 3) inner += `<div style="color:var(--muted);">… (+${cfg.statements.length - 3})</div>`;
+  } else if (tpl.exercise_type === 'matching' && cfg.pairs) {
+    inner = cfg.pairs.slice(0, 3).map(p => {
+      return `<div>${escHtml(p.left)} ⟶ <strong>${escHtml(p.right)}</strong></div>`;
+    }).join('');
+    if (cfg.pairs.length > 3) inner += `<div style="color:var(--muted);">… (+${cfg.pairs.length - 3})</div>`;
+  } else if (tpl.exercise_type === 'number_pyramid' && cfg.pyramids) {
+    const pyr = cfg.pyramids[0];
+    if (pyr && pyr.rows) {
+      const rows = [...pyr.rows].reverse();
+      inner = '<div style="display:flex; flex-direction:column; align-items:center; gap:2px;">';
+      rows.forEach(row => {
+        inner += '<div style="display:flex; gap:2px;">';
+        row.forEach(cell => {
+          const val = cell !== null ? cell : '?';
+          const bg = cell !== null ? '#e2e8f0' : 'var(--primary-light)';
+          const clr = cell !== null ? '#1e293b' : 'var(--primary)';
+          inner += `<div style="width:32px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);border-radius:4px;font-weight:700;font-size:0.82rem;background:${bg};color:${clr};">${val}</div>`;
+        });
+        inner += '</div>';
+      });
+      inner += '</div>';
+      if (cfg.pyramids.length > 1) inner += `<div style="color:var(--muted); font-size:0.78rem; margin-top:4px;">+ ${cfg.pyramids.length - 1} tháp nữa</div>`;
+    }
+  } else {
+    inner = `<pre style="font-size:0.75rem; margin:0; white-space:pre-wrap;">${escHtml(JSON.stringify(cfg, null, 1)).substring(0, 200)}</pre>`;
+  }
+
+  return `<div class="tpl-sample"><h4>Ví dụ mẫu</h4>${inner}</div>`;
+}
+
+let editingTplId = null;
+
+async function viewTemplate(id) {
+  editingTplId = id;
+  try {
+    const res = await fetch(`/api/admin/templates/${id}`, { headers: authHeaders() });
+    const tpl = await res.json();
+    const modal = document.getElementById('templateModal');
+    const form = document.getElementById('tplModalForm');
+    document.getElementById('tplModalTitle').textContent = `Dạng bài: ${tpl.name}`;
+
+    form.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+        <div class="form-group"><label>Tên dạng bài</label><input class="form-input" id="tplName" value="${escHtml(tpl.name)}"></div>
+        <div class="form-group"><label>Slug</label><input class="form-input" id="tplSlug" value="${escHtml(tpl.slug)}" disabled></div>
+      </div>
+      <div class="form-group"><label>Mô tả</label><textarea class="form-input" id="tplDesc" rows="2">${escHtml(tpl.description)}</textarea></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+        <div class="form-group"><label>Loại bài tập</label>
+          <select class="form-input" id="tplType">
+            ${Object.entries(typeLabels).map(([k,v]) => `<option value="${k}" ${k===tpl.exercise_type?'selected':''}>${v}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Lớp áp dụng</label><input class="form-input" id="tplGrades" value="${JSON.stringify(tpl.applicable_grades)}"></div>
+      </div>
+      <div class="form-group"><label>Lời dẫn mẫu</label><input class="form-input" id="tplInstr" value="${escHtml(tpl.instruction_template)}"></div>
+      <div class="form-group"><label>Tags (JSON array)</label><input class="form-input" id="tplTags" value='${JSON.stringify(tpl.tags)}'></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+        <div class="form-group"><label>Config mẫu (default_config)</label>
+          <textarea class="form-input" id="tplDefaultCfg" rows="8" style="font-family:monospace; font-size:0.8rem;">${JSON.stringify(tpl.default_config, null, 2)}</textarea>
+        </div>
+        <div class="form-group"><label>Ví dụ hoàn chỉnh (sample_config)</label>
+          <textarea class="form-input" id="tplSampleCfg" rows="8" style="font-family:monospace; font-size:0.8rem;">${JSON.stringify(tpl.sample_config, null, 2)}</textarea>
+        </div>
+      </div>
+    `;
+    modal.classList.remove('hidden');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function saveTemplate() {
+  if (!editingTplId) return;
+  let defaultCfg, sampleCfg, grades, tags;
+  try { defaultCfg = JSON.parse(document.getElementById('tplDefaultCfg').value); } catch(e) { alert('default_config JSON lỗi'); return; }
+  try { sampleCfg = JSON.parse(document.getElementById('tplSampleCfg').value); } catch(e) { alert('sample_config JSON lỗi'); return; }
+  try { grades = JSON.parse(document.getElementById('tplGrades').value); } catch(e) { grades = [1,2,3,4,5]; }
+  try { tags = JSON.parse(document.getElementById('tplTags').value); } catch(e) { tags = []; }
+
+  const payload = {
+    name: document.getElementById('tplName').value,
+    description: document.getElementById('tplDesc').value,
+    exercise_type: document.getElementById('tplType').value,
+    instruction_template: document.getElementById('tplInstr').value,
+    default_config: defaultCfg,
+    sample_config: sampleCfg,
+    applicable_grades: grades,
+    tags: tags,
+  };
+
+  try {
+    const res = await fetch(`/api/admin/templates/${editingTplId}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Lỗi'); return; }
+    closeModal('templateModal');
+    loadTemplates();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+let usingTemplateData = null;
+
+async function useTemplate(id) {
+  try {
+    const res = await fetch(`/api/admin/templates/${id}`, { headers: authHeaders() });
+    usingTemplateData = await res.json();
+    const tpl = usingTemplateData;
+    const modal = document.getElementById('useTemplateModal');
+    const form = document.getElementById('useTplForm');
+    document.getElementById('useTplTitle').textContent = `Tạo bài tập: ${tpl.name}`;
+
+    form.innerHTML = `
+      <p style="font-size:0.85rem; color:var(--muted); margin-bottom:0.8rem;">${escHtml(tpl.description)}</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.5rem;">
+        <div class="form-group"><label>Lớp</label><input class="form-input" id="utLop" type="number" min="1" max="5" value="1"></div>
+        <div class="form-group"><label>Tuần</label><input class="form-input" id="utTuan" type="number" min="1" max="37" value="1"></div>
+        <div class="form-group"><label>Thứ tự</label><input class="form-input" id="utSort" type="number" value="1"></div>
+        <div class="form-group"><label>Section</label>
+          <select class="form-input" id="utSection">
+            ${Object.entries(sectionLabels).map(([k,v]) => `<option value="${k}" ${k==='practice'?'selected':''}>${v}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+        <div class="form-group"><label>Tiêu đề (VI)</label><input class="form-input" id="utTitleVi" value=""></div>
+        <div class="form-group"><label>Title (EN)</label><input class="form-input" id="utTitleEn" value=""></div>
+      </div>
+      <div class="form-group"><label>Hướng dẫn (VI)</label><textarea class="form-input" id="utInstrVi" rows="2">${escHtml(tpl.instruction_template)}</textarea></div>
+      <div class="form-group"><label>Config (chỉnh dữ liệu bài tập)</label>
+        <textarea class="form-input" id="utConfig" rows="10" style="font-family:monospace; font-size:0.82rem;">${JSON.stringify(tpl.sample_config, null, 2)}</textarea>
+      </div>
+      <div class="form-group"><label>YCCĐ IDs</label><input class="form-input" id="utYccd" value=""></div>
+    `;
+    modal.classList.remove('hidden');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function submitFromTemplate() {
+  let config;
+  try { config = JSON.parse(document.getElementById('utConfig').value); } catch(e) { alert('Config JSON lỗi: ' + e.message); return; }
+
+  const payload = {
+    lop: parseInt(document.getElementById('utLop').value),
+    tuan: parseInt(document.getElementById('utTuan').value),
+    section: document.getElementById('utSection').value,
+    sort_order: parseInt(document.getElementById('utSort').value),
+    exercise_type: usingTemplateData.exercise_type,
+    title_vi: document.getElementById('utTitleVi').value,
+    title_en: document.getElementById('utTitleEn').value || '',
+    instruction_vi: document.getElementById('utInstrVi').value,
+    instruction_en: '',
+    hint_vi: '', hint_en: '',
+    config: config,
+    images: [],
+    yccd_ids: document.getElementById('utYccd').value,
+  };
+
+  try {
+    const res = await fetch(`/api/admin/templates/${usingTemplateData.id}/create-exercise`, {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Lỗi'); return; }
+    alert(`Đã tạo bài tập #${data.id}`);
+    closeModal('useTemplateModal');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+
+// ═══════════════════════════════════════════
+// IMAGES TAB (Kho hình ảnh)
+// ═══════════════════════════════════════════
+let imgCurrentFolder = '';
+
+async function loadImages(folder) {
+  if (folder !== undefined) imgCurrentFolder = folder;
+  const body = document.getElementById('adminBody');
+
+  let html = '<h2 style="margin-bottom:1rem;">🖼️ Kho hình ảnh</h2>';
+
+  // Drop zone
+  html += `<div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div style="font-size:2rem;margin-bottom:0.5rem;">📁</div>
+    <p><strong>Kéo thả ảnh vào đây</strong> hoặc bấm để chọn file</p>
+    <p style="font-size:0.78rem;">PNG, JPG, GIF, WebP, SVG — tối đa 5MB</p>
+    <input type="file" id="fileInput" multiple accept="image/*" style="display:none;" onchange="uploadFiles(this.files)">
+  </div>`;
+
+  // Upload folder selector
+  html += `<div class="filter-bar">
+    <label>Thư mục lưu:</label>
+    <input id="uploadFolder" value="${escHtml(imgCurrentFolder || 'general')}" style="width:200px;" placeholder="vd: lop1/week15">
+    <span style="flex:1;"></span>`;
+
+  // Breadcrumb
+  const parts = imgCurrentFolder ? imgCurrentFolder.split('/') : [];
+  html += `<span style="font-size:0.85rem;">📂 <a href="#" onclick="loadImages('');return false;" style="color:var(--primary);">root</a>`;
+  let crumb = '';
+  parts.forEach((p, i) => {
+    crumb += (i > 0 ? '/' : '') + p;
+    html += ` / <a href="#" onclick="loadImages('${crumb}');return false;" style="color:var(--primary);">${p}</a>`;
+  });
+  html += '</span></div>';
+
+  // Image grid
+  html += '<div id="imgGrid">Đang tải...</div>';
+  body.innerHTML = html;
+
+  // Setup drag-drop
+  setupDropZone();
+  await loadImageGrid();
+}
+
+function setupDropZone() {
+  const dz = document.getElementById('dropZone');
+  if (!dz) return;
+  ['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('dragover'); }));
+  dz.addEventListener('drop', ev => {
+    const files = ev.dataTransfer.files;
+    if (files.length) uploadFiles(files);
+  });
+}
+
+async function uploadFiles(files) {
+  const folder = document.getElementById('uploadFolder')?.value || imgCurrentFolder || 'general';
+  const formData = new FormData();
+  for (const f of files) formData.append('files', f);
+  formData.append('folder', folder);
+
+  const dz = document.getElementById('dropZone');
+  if (dz) dz.innerHTML = '<p style="color:var(--primary);font-weight:600;">⏳ Đang tải lên...</p>';
+
+  try {
+    const res = await fetch('/api/admin/upload-images', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Lỗi upload'); }
+    else {
+      const ok = data.uploaded.filter(u => !u.error).length;
+      const fail = data.uploaded.filter(u => u.error).length;
+      alert(`Đã tải lên ${ok} ảnh` + (fail ? `, ${fail} lỗi` : ''));
+    }
+  } catch(e) { alert('Lỗi: ' + e.message); }
+
+  // Refresh
+  imgCurrentFolder = folder;
+  loadImages();
+}
+
+async function loadImageGrid() {
+  const grid = document.getElementById('imgGrid');
+  try {
+    const res = await fetch(`/api/admin/images?folder=${encodeURIComponent(imgCurrentFolder)}`, { headers: authHeaders() });
+    const data = await res.json();
+
+    let html = '';
+    if (data.folders.length === 0 && data.images.length === 0) {
+      html = '<p style="color:var(--muted);padding:1rem;">Thư mục trống.</p>';
+    } else {
+      html = '<div class="img-grid">';
+      // Folders first
+      data.folders.forEach(f => {
+        html += `<div class="folder-card" onclick="loadImages('${escHtml(f.path)}')">
+          <div style="font-size:1.5rem;">📁</div>
+          <div style="font-size:0.82rem;font-weight:600;margin-top:4px;">${escHtml(f.name)}</div>
+        </div>`;
+      });
+      // Images
+      data.images.forEach(img => {
+        const sizeKb = (img.size / 1024).toFixed(1);
+        html += `<div class="img-card" title="${escHtml(img.path)} (${sizeKb}KB)">
+          <img src="${img.url}" alt="${escHtml(img.name)}" loading="lazy">
+          <div class="img-name">${escHtml(img.name)}</div>
+          <button class="img-copy" onclick="event.stopPropagation();copyImgPath('${escHtml(img.path)}')">📋 Copy path</button>
+        </div>`;
+      });
+      html += '</div>';
+      html += `<p style="font-size:0.8rem;color:var(--muted);margin-top:0.5rem;">${data.images.length} ảnh, ${data.folders.length} thư mục</p>`;
+    }
+    grid.innerHTML = html;
+  } catch(e) {
+    grid.innerHTML = `<p style="color:var(--danger);">Error: ${e.message}</p>`;
+  }
+}
+
+function copyImgPath(path) {
+  navigator.clipboard.writeText(path).then(() => {
+    // Brief visual feedback
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  }).catch(() => {
+    prompt('Copy path:', path);
+  });
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+checkAuth();
+switchTab('dashboard');
+</script>
+</body>
+</html>

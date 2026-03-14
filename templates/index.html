@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Toán Tiểu Học — Math Practice</title>
+<link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-logo" onclick="goHome()" style="cursor:pointer;">📐 <span class="t" data-en="Math Practice" data-vi="Toán Tiểu Học"></span></span>
+  </div>
+  <div class="topbar-right">
+    <button class="lang-btn" onclick="setLang('en')" id="btnEn" title="English">🇬🇧</button>
+    <button class="lang-btn active" onclick="setLang('vi')" id="btnVi" title="Tiếng Việt">🇻🇳</button>
+    <div class="user-badge" id="userBadge"></div>
+    <a href="/admin" class="btn btn-sm btn-warning hidden" id="adminLink" style="text-decoration:none;">🛡️ Admin</a>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">🚪</button>
+  </div>
+</div>
+
+<!-- GRADE TABS -->
+<div class="grade-tabs" id="gradeTabs">
+  <button class="grade-tab active" data-lop="1" onclick="selectGrade(1)">
+    <span class="t" data-en="Grade 1" data-vi="Lớp 1"></span>
+  </button>
+  <button class="grade-tab" data-lop="2" onclick="selectGrade(2)">
+    <span class="t" data-en="Grade 2" data-vi="Lớp 2"></span>
+  </button>
+  <button class="grade-tab" data-lop="3" onclick="selectGrade(3)">
+    <span class="t" data-en="Grade 3" data-vi="Lớp 3"></span>
+  </button>
+  <button class="grade-tab" data-lop="4" onclick="selectGrade(4)">
+    <span class="t" data-en="Grade 4" data-vi="Lớp 4"></span>
+  </button>
+  <button class="grade-tab" data-lop="5" onclick="selectGrade(5)">
+    <span class="t" data-en="Grade 5" data-vi="Lớp 5"></span>
+  </button>
+</div>
+
+<!-- MAIN CONTENT AREA -->
+<div class="main-content" id="mainContent">
+  <!-- Dynamic content: week grid or exercise view -->
+</div>
+
+<!-- SCORE BAR (shown in exercise view) -->
+<div class="score-bar hidden" id="scoreBar">
+  <span class="score-text">⭐ <span id="scoreText">0 / 0</span></span>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%;"></div></div>
+  <button class="btn btn-success btn-sm" onclick="checkAll()">
+    ✅ <span class="t" data-en="Check All" data-vi="Kiểm tra"></span>
+  </button>
+</div>
+
+<!-- ADMIN EXERCISE EDITOR MODAL -->
+<div class="modal-overlay hidden" id="editorModal">
+  <div class="modal">
+    <h2>✏️ <span class="t" data-en="Exercise Editor" data-vi="Soạn bài tập"></span></h2>
+    <div id="editorForm"></div>
+    <div style="display:flex; gap:8px; margin-top:1rem;">
+      <button class="btn btn-success" onclick="saveExercise()"><span class="t" data-en="Save" data-vi="Lưu"></span></button>
+      <button class="btn btn-outline" onclick="previewExercise()"><span class="t" data-en="Preview" data-vi="Xem trước"></span></button>
+      <button class="btn btn-ghost" onclick="closeEditor()" style="margin-left:auto;"><span class="t" data-en="Cancel" data-vi="Hủy"></span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// GLOBAL STATE
+// ═══════════════════════════════════════════
+let currentLang = 'vi';
+let currentUser = null;
+let currentGrade = 1;
+let currentView = 'grid'; // 'grid' | 'exercise'
+let currentWeek = null;
+let exerciseCheckers = []; // array of {check: fn, getScore: fn}
+
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+function getToken() { return localStorage.getItem('token'); }
+function authHeaders() { return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }; }
+
+function checkAuth() {
+  const token = getToken();
+  const user = localStorage.getItem('user');
+  if (!token || !user) { window.location.href = '/login'; return; }
+  currentUser = JSON.parse(user);
+  document.getElementById('userBadge').textContent =
+    (currentUser.role === 'admin' ? '🛡️ ' : '👤 ') + currentUser.display_name;
+  if (currentUser.role === 'admin') {
+    document.getElementById('adminLink').classList.remove('hidden');
+  }
+  currentGrade = currentUser.lop || 1;
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = '/login';
+}
+
+// ═══════════════════════════════════════════
+// I18N
+// ═══════════════════════════════════════════
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.t').forEach(el => {
+    const txt = el.dataset[lang];
+    if (txt !== undefined) el.textContent = txt;
+  });
+  document.getElementById('btnEn').classList.toggle('active', lang === 'en');
+  document.getElementById('btnVi').classList.toggle('active', lang === 'vi');
+  document.documentElement.lang = lang;
+  localStorage.setItem('lang', lang);
+}
+
+function T(en, vi) { return currentLang === 'vi' ? vi : en; }
+
+function tSpan(en, vi) {
+  return `<span class="t" data-en="${escHtml(en)}" data-vi="${escHtml(vi)}"></span>`;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function selectGrade(lop) {
+  currentGrade = lop;
+  document.querySelectorAll('.grade-tab').forEach(t => t.classList.toggle('active', parseInt(t.dataset.lop) === lop));
+  currentView = 'grid';
+  currentWeek = null;
+  document.getElementById('scoreBar').classList.add('hidden');
+  loadWeekGrid(lop);
+}
+
+function goHome() {
+  currentView = 'grid';
+  currentWeek = null;
+  document.getElementById('scoreBar').classList.add('hidden');
+  document.getElementById('gradeTabs').classList.remove('hidden');
+  loadWeekGrid(currentGrade);
+}
+
+// ═══════════════════════════════════════════
+// WEEK GRID
+// ═══════════════════════════════════════════
+async function loadWeekGrid(lop) {
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `<div class="text-center mt-2"><span class="t" data-en="Loading..." data-vi="Đang tải..."></span></div>`;
+  setLang(currentLang);
+
+  try {
+    const [weeksRes, progressRes] = await Promise.all([
+      fetch(`/api/curriculum/weeks/${lop}`, { headers: authHeaders() }),
+      fetch(`/api/exercises/progress/${lop}`, { headers: authHeaders() }).catch(() => null),
+    ]);
+    const weeksData = await weeksRes.json();
+    const progressData = progressRes ? await progressRes.json() : { progress: [] };
+
+    const progressMap = {};
+    (progressData.progress || []).forEach(p => { progressMap[p.tuan] = p; });
+
+    const weeks = weeksData.weeks || [];
+    const weekSet = new Set(weeks.map(w => w.tuan));
+
+    // Determine semester split (week 18 is usually end of semester 1 for grade 1)
+    const sem1End = lop === 1 ? 18 : 18;
+
+    let html = '';
+
+    // Admin toolbar
+    if (currentUser && currentUser.role === 'admin') {
+      html += `<div class="admin-toolbar">
+        <span class="admin-badge">ADMIN</span>
+        <span class="t" data-en="You can edit exercises in each week." data-vi="Bạn có thể sửa bài tập trong mỗi tuần."></span>
+      </div>`;
+    }
+
+    // Semester 1
+    html += `<div class="semester-label">📚 ${tSpan('Semester 1 (Weeks 1-'+sem1End+')', 'Học kì 1 (Tuần 1-'+sem1End+')')}</div>`;
+    html += '<div class="week-grid">';
+    for (let w = 1; w <= sem1End; w++) {
+      const weekInfo = weeks.find(wi => wi.tuan === w);
+      const prog = progressMap[w];
+      html += buildWeekCard(w, weekInfo, prog);
+    }
+    // Midterm review
+    html += buildSpecialCard(36, T('Midterm Review', 'Ôn tập giữa kì'), '📝');
+    html += '</div>';
+
+    // Semester 2
+    html += `<div class="semester-label">📚 ${tSpan('Semester 2 (Weeks '+(sem1End+1)+'-35)', 'Học kì 2 (Tuần '+(sem1End+1)+'-35)')}</div>`;
+    html += '<div class="week-grid">';
+    for (let w = sem1End + 1; w <= 35; w++) {
+      const weekInfo = weeks.find(wi => wi.tuan === w);
+      const prog = progressMap[w];
+      html += buildWeekCard(w, weekInfo, prog);
+    }
+    // Final review
+    html += buildSpecialCard(37, T('Final Review', 'Ôn tập cuối năm'), '🏆');
+    html += '</div>';
+
+    main.innerHTML = html;
+    setLang(currentLang);
+
+  } catch (e) {
+    main.innerHTML = `<div class="text-center mt-2" style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+function buildWeekCard(week, weekInfo, progress) {
+  const label = weekInfo ? (weekInfo.chu_de || '').replace(/^\d+\.\s*/, '').substring(0, 30) : '';
+  let progIcon = '';
+  if (progress && progress.completed_exercises > 0) {
+    if (progress.completed_exercises >= progress.total_exercises) {
+      progIcon = '<span class="week-progress done">✓</span>';
+    } else {
+      progIcon = `<span class="week-progress partial">${Math.round(progress.completed_exercises/progress.total_exercises*100)}%</span>`;
+    }
+  }
+  return `<div class="week-card" onclick="openWeek(${week})">
+    ${progIcon}
+    <div class="week-num">${week}</div>
+    <div class="week-label">${tSpan('Week '+week, 'Tuần '+week)}</div>
+    <div class="week-label" style="font-size:0.65rem; margin-top:2px; color:var(--text);">${escHtml(label)}</div>
+  </div>`;
+}
+
+function buildSpecialCard(week, label, icon) {
+  return `<div class="week-card special" onclick="openWeek(${week})">
+    <div class="week-num">${icon}</div>
+    <div class="week-label" style="font-size:0.8rem; font-weight:600;">${label}</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+// EXERCISE VIEW
+// ═══════════════════════════════════════════
+async function openWeek(week) {
+  currentView = 'exercise';
+  currentWeek = week;
+  exerciseCheckers = [];
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `<div class="text-center mt-2">${tSpan('Loading...','Đang tải...')}</div>`;
+  setLang(currentLang);
+
+  try {
+    const [exRes, yccdRes, weeksRes] = await Promise.all([
+      fetch(`/api/exercises/week/${currentGrade}/${week}`, { headers: authHeaders() }),
+      fetch(`/api/curriculum/yccd-by-week/${currentGrade}/${week}`, { headers: authHeaders() }),
+      fetch(`/api/curriculum/weeks/${currentGrade}`, { headers: authHeaders() }),
+    ]);
+    const exData = await exRes.json();
+    const yccdData = await yccdRes.json();
+    const weeksData = await weeksRes.json();
+
+    const weekInfo = (weeksData.weeks || []).find(w => w.tuan === week);
+    const weekLabel = week <= 35
+      ? T(`Week ${week}`, `Tuần ${week}`)
+      : week === 36 ? T('Midterm Review', 'Ôn tập giữa kì') : T('Final Review', 'Ôn tập cuối năm');
+
+    const topicLabel = weekInfo ? weekInfo.chu_de || '' : '';
+    const lessonLabel = weekInfo ? weekInfo.bai_hoc || '' : '';
+
+    let html = '';
+
+    // Back button + header
+    html += `<div class="exercise-header">
+      <div class="exercise-back" onclick="goHome()">← ${tSpan('Back to weeks','Về danh sách tuần')}</div>
+      <h1>${tSpan('Grade '+currentGrade+' — '+weekLabel, 'Lớp '+currentGrade+' — '+weekLabel)}</h1>
+      <div class="week-meta">${escHtml(topicLabel)}</div>
+      <div class="week-meta" style="font-size:0.82rem; opacity:0.8;">${escHtml(lessonLabel)}</div>
+    </div>`;
+
+    // YCCĐ panel
+    const yccds = yccdData.yccd || [];
+    if (yccds.length > 0) {
+      html += `<div class="yccd-panel">
+        <h3>📌 ${tSpan('Curriculum Requirements (YCCĐ) this week','Yêu cầu cần đạt tuần này')}</h3>`;
+      yccds.forEach(y => {
+        html += `<div class="yccd-item">${escHtml(y.noi_dung)}</div>`;
+      });
+      html += '</div>';
+    }
+
+    // Exercises
+    const exercises = exData.exercises || [];
+    if (exercises.length === 0) {
+      html += `<div class="ex-card text-center" style="padding:3rem;">
+        <div style="font-size:3rem; margin-bottom:1rem;">📝</div>
+        <h3>${tSpan('No exercises yet','Chưa có bài tập')}</h3>
+        <p class="text-muted">${tSpan('Exercises for this week will be added soon.','Bài tập tuần này sẽ được thêm sớm.')}</p>`;
+      if (currentUser && currentUser.role === 'admin') {
+        html += `<button class="btn btn-primary mt-2" onclick="openEditor(null, ${currentGrade}, ${week})">
+          ➕ ${tSpan('Add Exercise','Thêm bài tập')}</button>`;
+      }
+      html += '</div>';
+    } else {
+      // Group by section
+      const sections = {};
+      exercises.forEach(ex => {
+        const sec = ex.section || 'practice';
+        if (!sections[sec]) sections[sec] = [];
+        sections[sec].push(ex);
+      });
+
+      const sectionNames = {
+        kham_pha: { en: 'A. EXPLORE', vi: 'A. KHÁM PHÁ', icon: '🔍' },
+        hoat_dong: { en: 'B. ACTIVITY', vi: 'B. HOẠT ĐỘNG', icon: '✏️' },
+        cung_co: { en: 'C. CONSOLIDATE', vi: 'C. CỦNG CỐ', icon: '💪' },
+        toan_vui: { en: 'D. FUN MATH', vi: 'D. TOÁN HỌC VUI', icon: '🎮' },
+        practice: { en: 'PRACTICE', vi: 'LUYỆN TẬP', icon: '📝' },
+      };
+
+      for (const [sec, exList] of Object.entries(sections)) {
+        const secInfo = sectionNames[sec] || { en: sec, vi: sec, icon: '📋' };
+        html += `<div class="section-title">${secInfo.icon} ${tSpan(secInfo.en, secInfo.vi)}</div>`;
+        exList.forEach((ex, idx) => {
+          html += renderExerciseCard(ex, `ex_${sec}_${idx}`);
+        });
+      }
+
+      // Admin: add exercise button
+      if (currentUser && currentUser.role === 'admin') {
+        html += `<div class="text-center mt-2">
+          <button class="btn btn-primary" onclick="openEditor(null, ${currentGrade}, ${week})">
+            ➕ ${tSpan('Add Exercise','Thêm bài tập')}</button>
+        </div>`;
+      }
+    }
+
+    main.innerHTML = html;
+    document.getElementById('scoreBar').classList.remove('hidden');
+    document.getElementById('gradeTabs').classList.add('hidden');
+    setLang(currentLang);
+    initExercises(exercises);
+    updateScore();
+
+  } catch (e) {
+    main.innerHTML = `<div class="ex-card text-center" style="color:var(--danger);">Error: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+// EXERCISE CARD RENDERER
+// ═══════════════════════════════════════════
+function renderExerciseCard(ex, containerId) {
+  const isG1 = currentGrade === 1;
+  let html = `<div class="ex-card" id="${containerId}" data-exercise-id="${ex.id}" data-type="${ex.exercise_type}">`;
+
+  // Admin edit button
+  if (currentUser && currentUser.role === 'admin') {
+    html += `<div style="float:right;">
+      <button class="btn btn-sm btn-outline" onclick="openEditor(${ex.id})">✏️</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteExercise(${ex.id})">🗑</button>
+    </div>`;
+  }
+
+  // Title
+  html += `<h3>${tSpan(ex.title_en || ex.title_vi, ex.title_vi)}</h3>`;
+
+  // TTS button for Grade 1
+  if (isG1) {
+    const ttsText = currentLang === 'vi' ? ex.instruction_vi : (ex.instruction_en || ex.instruction_vi);
+    html += `<button class="tts-btn" onclick="speakText('${escHtml(ttsText)}')">🔊 ${tSpan('Listen','Nghe đề')}</button>`;
+  }
+
+  // Instruction
+  if (ex.instruction_vi) {
+    html += `<p class="instruction">${tSpan(ex.instruction_en || '', ex.instruction_vi)}</p>`;
+  }
+
+  // Hint
+  if (ex.hint_vi) {
+    html += `<button class="hint-btn" onclick="toggleHint(this)">💡 ${tSpan('Hint','Gợi ý')}</button>`;
+    html += `<div class="hint-text">${tSpan(ex.hint_en || '', ex.hint_vi)}</div>`;
+  }
+
+  // Exercise body (rendered by type-specific JS)
+  html += `<div class="ex-body" id="${containerId}_body"></div>`;
+
+  // Images
+  if (ex.images && ex.images.length > 0) {
+    html += '<div class="ex-image-grid">';
+    ex.images.forEach(img => {
+      html += `<img class="ex-image" src="/static/img/exercises/${img}" alt="exercise image">`;
+    });
+    html += '</div>';
+  }
+
+  // Check button
+  html += `<div style="text-align:center; margin-top:0.8rem;">
+    <button class="btn btn-primary btn-sm" onclick="checkExercise('${containerId}')">
+      ${tSpan('Check ✓','Kiểm tra ✓')}</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetExercise('${containerId}')" style="margin-left:6px;">
+      ${tSpan('↩ Redo','↩ Làm lại')}</button>
+    <span class="check-msg" id="${containerId}_msg"></span>
+  </div>`;
+
+  html += '</div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════
+// EXERCISE TYPE RENDERERS
+// ═══════════════════════════════════════════
+function initExercises(exercises) {
+  window._currentExercises = exercises;
+  exerciseCheckers = [];
+  exercises.forEach((ex, idx) => {
+    const sec = ex.section || 'practice';
+    const containerId = `ex_${sec}_${idx}`;
+    const bodyEl = document.getElementById(containerId + '_body');
+    if (!bodyEl) return;
+
+    const renderer = exerciseRenderers[ex.exercise_type];
+    if (renderer) {
+      const checker = renderer(bodyEl, ex.config, ex);
+      exerciseCheckers.push({ containerId, checker, exerciseId: ex.id });
+    } else {
+      bodyEl.innerHTML = `<div class="text-muted" style="font-style:italic;">
+        ${tSpan('Exercise type: '+ex.exercise_type+' (coming soon)','Dạng bài: '+ex.exercise_type+' (sẽ có sớm)')}</div>`;
+    }
+  });
+  setLang(currentLang);
+}
+
+const exerciseRenderers = {
+  // ─── FILL IN THE BLANK ───
+  fill_in(container, config, ex) {
+    const items = config.items || [];
+    let html = '';
+    if (config.illustration) {
+      html += `<div style="text-align:center; font-size:1.5rem; margin:0.5rem 0;">${config.illustration.emoji || ''}</div>`;
+      if (config.illustration.description_vi) {
+        html += `<p class="text-muted text-center" style="font-size:0.85rem;">${tSpan(config.illustration.description_en||'', config.illustration.description_vi)}</p>`;
+      }
+    }
+    const cols = config.layout === 'grid_2col' ? 'grid-template-columns:1fr 1fr;' : '';
+    html += `<div style="display:grid; ${cols} gap:0.6rem; margin-top:0.5rem;">`;
+    items.forEach((item, i) => {
+      const prefix = config.show_labels !== false ? String.fromCharCode(97 + i) + ') ' : '';
+      const expr = item.expression.replace(/\s*=\s*$/, '');
+      html += `<div class="compute-item">${prefix}${expr} = <input class="num-input" data-answer="${item.answer}" id="fi_${i}"></div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    setLang(currentLang);
+
+    return {
+      check() {
+        let correct = 0;
+        items.forEach((item, i) => {
+          const inp = document.getElementById(`fi_${i}`);
+          if (!inp) return;
+          const val = inp.value.trim();
+          if (val === String(item.answer)) { inp.className = 'num-input correct'; correct++; }
+          else if (val) { inp.className = 'num-input wrong'; }
+        });
+        return { score: correct, total: items.length };
+      }
+    };
+  },
+
+  // ─── COLORING ───
+  coloring(container, config) {
+    const total = config.total_items || 6;
+    const emoji = config.emoji || '🔴';
+    const targets = config.color_targets || [];
+    let selectedColor = targets.length > 0 ? targets[0].color : '#3b82f6';
+    const slots = [];
+
+    let html = `<p>${tSpan(
+      `There are ${total} ${config.label_en||'items'}. ` + targets.map(t => `Color ${t.count} ${t.name_en}`).join(', then ') + '.',
+      `Có ${total} ${config.label_vi||'quả'}. ` + targets.map(t => `Tô ${t.count} ${t.name_vi}`).join(', rồi ') + '.'
+    )}</p>`;
+
+    // Toolbar
+    html += '<div class="color-toolbar">';
+    html += `<span style="font-weight:600;">${tSpan('Pick a color:','Chọn màu:')}</span>`;
+    targets.forEach((t, i) => {
+      html += `<button class="color-btn ${i===0?'active':''}" style="background:${t.color};" data-color="${t.color}" onclick="pickExColor(this, '${container.id}')"></button>`;
+    });
+    html += `<button class="color-btn" style="background:#f8fafc; border:2px dashed #94a3b8;" data-color="" onclick="pickExColor(this, '${container.id}')" title="Eraser"></button>`;
+    html += '</div>';
+
+    // Fruit grid
+    html += '<div class="fruits-grid">';
+    for (let i = 0; i < total; i++) {
+      html += `<div class="fruit-slot" data-slot="${i}" onclick="colorSlot(this, '${container.id}')">${emoji}</div>`;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    container._selectedColor = selectedColor;
+    container._targets = targets;
+    container._total = total;
+    setLang(currentLang);
+
+    return {
+      check() {
+        const slotEls = container.querySelectorAll('.fruit-slot');
+        let correct = 0;
+        const counts = {};
+        slotEls.forEach(s => {
+          const c = s.dataset.paintColor || '';
+          if (c) counts[c] = (counts[c] || 0) + 1;
+        });
+        targets.forEach(t => {
+          if (counts[t.color] === t.count) correct++;
+        });
+        return { score: correct, total: targets.length };
+      }
+    };
+  },
+
+  // ─── MATCHING ───
+  matching(container, config) {
+    const pairs = config.pairs || [];
+    const rights = config.right_items || [];
+    const matches = {};
+
+    let html = '<div class="match-wrapper" style="position:relative;">';
+    html += '<svg class="match-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;"></svg>';
+    html += '<div class="match-container"><div class="match-col">';
+    pairs.forEach((p, i) => {
+      html += `<div class="match-item" data-side="left" data-idx="${i}" onclick="matchClick(this, '${container.id}')">${p.left_expr}<br><small>${tSpan(p.left_label_en||'', p.left_label_vi||'')}</small></div>`;
+    });
+    html += '</div><div class="match-col">';
+    rights.forEach((r, i) => {
+      html += `<div class="match-item" data-side="right" data-idx="${i}" data-value="${r.value}" onclick="matchClick(this, '${container.id}')">${r.value}<br><small>${tSpan(r.label_en||'', r.label_vi||'')}</small></div>`;
+    });
+    html += '</div></div></div>';
+    container.innerHTML = html;
+    container._pairs = pairs;
+    container._rights = rights;
+    container._matches = matches;
+    container._selectedLeft = null;
+    setLang(currentLang);
+
+    return {
+      check() {
+        let correct = 0;
+        pairs.forEach((p, i) => {
+          const m = container._matches[i];
+          if (m !== undefined) {
+            const rightVal = rights[m].value;
+            if (rightVal === p.answer) correct++;
+          }
+        });
+        return { score: correct, total: pairs.length };
+      }
+    };
+  },
+
+  // ─── TABLE FILL ───
+  table_fill(container, config) {
+    const op = config.operation || '-';
+    const base = config.base || 7;
+    const operands = config.operands || [1,2,3,4,5,6,7,0];
+    const answers = config.answers || operands.map(x => op === '-' ? base - x : base + x);
+
+    let html = '<table class="math-table"><tr>';
+    html += `<th>${op === '-' ? '−' : '+'}</th>`;
+    operands.forEach(() => html += `<th>${base}</th>`);
+    html += '</tr><tr><th></th>';
+    operands.forEach(x => html += `<th>${x}</th>`);
+    html += '</tr><tr><th>=</th>';
+    answers.forEach((a, i) => {
+      html += `<td><input class="num-input" data-answer="${a}" id="tf_${i}" style="width:36px;"></td>`;
+    });
+    html += '</tr></table>';
+    container.innerHTML = html;
+
+    return {
+      check() {
+        let correct = 0;
+        answers.forEach((a, i) => {
+          const inp = document.getElementById(`tf_${i}`);
+          if (!inp) return;
+          if (inp.value.trim() === String(a)) { inp.className = 'num-input correct'; correct++; }
+          else if (inp.value.trim()) { inp.className = 'num-input wrong'; }
+        });
+        return { score: correct, total: answers.length };
+      }
+    };
+  },
+
+  // ─── WORD PROBLEM ───
+  word_problem(container, config) {
+    const story = config.story || {};
+    let html = '';
+    if (story.illustration) {
+      html += `<div style="text-align:center; font-size:2rem; margin:0.5rem 0;">${story.illustration}</div>`;
+    }
+    html += `<p style="line-height:1.8;">${tSpan(story.text_en || '', story.text_vi || '')}</p>`;
+    if (story.expression) {
+      html += `<div class="compute-row" style="justify-content:center; margin-top:0.8rem;">
+        <span class="compute-item" style="font-size:1.2rem;">${story.expression} = <input class="num-input" data-answer="${story.answer}" id="wp_ans" style="width:50px; font-size:1.1rem;"></span>
+      </div>`;
+    }
+    container.innerHTML = html;
+    setLang(currentLang);
+
+    return {
+      check() {
+        const inp = document.getElementById('wp_ans');
+        if (!inp) return { score: 0, total: 1 };
+        if (inp.value.trim() === String(story.answer)) { inp.className = 'num-input correct'; return { score: 1, total: 1 }; }
+        if (inp.value.trim()) inp.className = 'num-input wrong';
+        return { score: 0, total: 1 };
+      }
+    };
+  },
+
+  // ─── MULTIPLE CHOICE ───
+  multiple_choice(container, config) {
+    const question = config.question || {};
+    const choices = config.choices || [];
+    const correctIdx = config.correct_index ?? 0;
+
+    let html = `<p style="font-weight:600; margin-bottom:0.5rem;">${tSpan(question.text_en||'', question.text_vi||'')}</p>`;
+    if (question.image) {
+      html += `<img class="ex-image" src="/static/img/exercises/${question.image}" style="max-width:250px;">`;
+    }
+    const hasImages = choices.some(ch => ch.image);
+    const layoutStyle = hasImages
+      ? 'display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-top:0.5rem;'
+      : 'display:flex; flex-direction:column; gap:6px; margin-top:0.5rem;';
+    html += `<div style="${layoutStyle}">`;
+    choices.forEach((ch, i) => {
+      const label = String.fromCharCode(65 + i);
+      if (ch.image) {
+        html += `<div class="mc-option" data-idx="${i}" onclick="selectMC(this, '${container.id}')" style="border:2px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.2s; padding:8px; text-align:center;">
+          <input type="radio" name="mc_${container.id}" value="${i}" style="display:none;">
+          <div style="font-weight:700; margin-bottom:4px;">${label}.</div>
+          <img src="/static/img/exercises/${ch.image}" style="max-width:120px; max-height:100px; border-radius:6px;">
+          ${ch.text_vi ? `<div style="font-size:0.8rem; margin-top:4px;">${tSpan(ch.text_en||ch.text_vi, ch.text_vi)}</div>` : ''}
+        </div>`;
+      } else {
+        html += `<label style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:2px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.2s;" class="mc-option" data-idx="${i}" onclick="selectMC(this, '${container.id}')">
+          <input type="radio" name="mc_${container.id}" value="${i}" style="display:none;">
+          <span style="width:28px; height:28px; border:2px solid var(--border); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.85rem; flex-shrink:0;">${label}</span>
+          <span>${tSpan(ch.text_en||ch.text_vi, ch.text_vi)}</span>
+        </label>`;
+      }
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    container._correctIdx = correctIdx;
+    setLang(currentLang);
+
+    return {
+      check() {
+        const selected = container.querySelector('.mc-option.selected');
+        if (!selected) return { score: 0, total: 1 };
+        const idx = parseInt(selected.dataset.idx);
+        container.querySelectorAll('.mc-option').forEach(opt => {
+          const oi = parseInt(opt.dataset.idx);
+          if (oi === correctIdx) opt.style.borderColor = 'var(--success)';
+          else if (oi === idx) opt.style.borderColor = 'var(--danger)';
+        });
+        return { score: idx === correctIdx ? 1 : 0, total: 1 };
+      }
+    };
+  },
+
+  // ─── IMAGE EXERCISE (display image + fill_in) ───
+  image_exercise(container, config) {
+    const items = config.items || [];
+    let html = '';
+    if (config.image) {
+      html += `<div style="text-align:center; margin:0.5rem 0;">
+        <img class="ex-image" src="/static/img/exercises/${config.image}" style="max-width:400px;">
+      </div>`;
+    }
+    if (config.description_vi) {
+      html += `<p class="text-muted" style="font-size:0.85rem; text-align:center;">
+        ${tSpan(config.description_en||'', config.description_vi)}</p>`;
+    }
+    if (items.length > 0) {
+      html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.5rem;">';
+      items.forEach((item, i) => {
+        html += `<div class="compute-item">${item.label || ''} <input class="num-input" data-answer="${item.answer}" id="img_${container.id}_${i}"></div>`;
+      });
+      html += '</div>';
+    }
+    container.innerHTML = html;
+    setLang(currentLang);
+
+    return {
+      check() {
+        let correct = 0;
+        items.forEach((item, i) => {
+          const inp = document.getElementById(`img_${container.id}_${i}`);
+          if (!inp) return;
+          if (inp.value.trim() === String(item.answer)) { inp.className = 'num-input correct'; correct++; }
+          else if (inp.value.trim()) { inp.className = 'num-input wrong'; }
+        });
+        return { score: correct, total: items.length || 1 };
+      }
+    };
+  },
+
+  // ─── TRUE/FALSE (Đúng/Sai) ───
+  // ─── CLASSIFY MATCH (nối vật với nhóm) ───
+  classify_match(container, config) {
+    const items = config.items || [];
+    const categories = config.categories || [];
+    const assignments = {}; // itemIdx → categoryId
+    let selectedItem = null;
+
+    function render() {
+      let html = '';
+      // Top row: items
+      html += '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:1rem;">';
+      items.forEach((item, i) => {
+        const assigned = assignments[i];
+        const cat = assigned ? categories.find(c => c.id === assigned) : null;
+        const border = selectedItem === i ? 'border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);' : '';
+        const bg = cat ? 'background:' + (cat.id === categories[0]?.id ? '#dbeafe' : '#fef3c7') + ';' : '';
+        html += `<div class="cm-item" data-idx="${i}" onclick="cmPick(${i},'${container.id}')" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 12px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.15s;min-width:70px;${border}${bg}">
+          <span style="font-size:1.6rem;">${item.label.split(' ')[0]}</span>
+          <span style="font-size:0.75rem;font-weight:600;text-align:center;">${item.label.split(' ').slice(1).join(' ')}</span>
+          ${cat ? `<span style="font-size:0.65rem;color:var(--muted);">→ ${cat.label.split(' ').slice(1).join(' ')}</span>` : ''}
+        </div>`;
+      });
+      html += '</div>';
+
+      // Separator with SVG lines
+      html += '<div class="cm-lines" style="position:relative;height:40px;">';
+      html += '<svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>';
+      html += '</div>';
+
+      // Bottom row: categories
+      html += '<div style="display:flex;gap:1.5rem;justify-content:center;">';
+      categories.forEach(cat => {
+        const count = Object.values(assignments).filter(v => v === cat.id).length;
+        html += `<div class="cm-cat" data-cat="${cat.id}" onclick="cmPickCat('${cat.id}','${container.id}')" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 20px;border:3px solid var(--border);border-radius:12px;cursor:pointer;transition:all 0.15s;min-width:120px;">
+          <span style="font-size:2.2rem;">${cat.label.split(' ')[0]}</span>
+          <span style="font-weight:700;font-size:0.88rem;">${cat.label.split(' ').slice(1).join(' ')}</span>
+          <span style="font-size:0.75rem;color:var(--muted);">${count} vật</span>
+        </div>`;
+      });
+      html += '</div>';
+
+      container.innerHTML = html;
+
+      // Draw lines
+      requestAnimationFrame(() => drawCmLines(container));
+    }
+
+    window.cmPick = function(idx, cid) {
+      if (cid !== container.id) return;
+      if (selectedItem === idx) { selectedItem = null; } // deselect
+      else { selectedItem = idx; }
+      render();
+    };
+
+    window.cmPickCat = function(catId, cid) {
+      if (cid !== container.id || selectedItem === null) return;
+      assignments[selectedItem] = catId;
+      selectedItem = null;
+      render();
+    };
+
+    window.drawCmLines = function(cont) {
+      const svg = cont.querySelector('.cm-lines svg');
+      if (!svg) return;
+      const wrapper = cont.querySelector('.cm-lines');
+      const wRect = wrapper.getBoundingClientRect();
+      svg.setAttribute('viewBox', `0 0 ${wRect.width} ${wRect.height}`);
+      svg.innerHTML = '';
+      const colors = {'lap_phuong':'#3b82f6','hop_chu_nhat':'#f59e0b'};
+      Object.entries(assignments).forEach(([iStr, catId]) => {
+        const i = parseInt(iStr);
+        const itemEl = cont.querySelector(`.cm-item[data-idx="${i}"]`);
+        const catEl = cont.querySelector(`.cm-cat[data-cat="${catId}"]`);
+        if (!itemEl || !catEl) return;
+        const ir = itemEl.getBoundingClientRect();
+        const cr = catEl.getBoundingClientRect();
+        const x1 = ir.left + ir.width/2 - wRect.left;
+        const y1 = 0;
+        const x2 = cr.left + cr.width/2 - wRect.left;
+        const y2 = wRect.height;
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+        line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+        line.setAttribute('x2',x2); line.setAttribute('y2',y2);
+        line.setAttribute('stroke', colors[catId]||'#94a3b8');
+        line.setAttribute('stroke-width','2'); line.setAttribute('stroke-linecap','round');
+        line.setAttribute('opacity','0.6');
+        svg.appendChild(line);
+      });
+    };
+
+    render();
+
+    return {
+      check() {
+        let correct = 0;
+        items.forEach((item, i) => {
+          const el = container.querySelector(`.cm-item[data-idx="${i}"]`);
+          if (assignments[i] === item.category) {
+            correct++;
+            if (el) el.style.borderColor = 'var(--success)';
+          } else if (assignments[i]) {
+            if (el) el.style.borderColor = 'var(--danger)';
+          }
+        });
+        return { score: correct, total: items.length };
+      }
+    };
+  },
+
+  // ─── IMAGE EQUATIONS (viết phép tính từ hình) ───
+  image_equations(container, config) {
+    const groups = config.groups || [];
+    let html = '';
+    groups.forEach((g, gi) => {
+      html += `<div style="border:2px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;">`;
+      // Image or description
+      if (g.image) {
+        html += `<div style="text-align:center;margin-bottom:0.5rem;"><img src="/static/img/exercises/${g.image}" alt="" style="max-height:120px;border-radius:8px;" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><p style="display:none;color:var(--muted);font-style:italic;font-size:0.88rem;">🖼 ${tSpan(g.description_en||'',g.description_vi||'')}</p></div>`;
+      } else if (g.description_vi) {
+        html += `<p style="text-align:center;color:var(--muted);font-style:italic;font-size:0.88rem;margin-bottom:0.5rem;">🖼 ${tSpan(g.description_en||'',g.description_vi||'')}</p>`;
+      }
+      // Equation rows
+      html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+      g.equations.forEach((eq, ei) => {
+        const op = eq.op || '+';
+        const id = `ie_${gi}_${ei}`;
+        html += `<div style="display:flex;align-items:center;gap:6px;justify-content:center;">
+          <input class="num-input ie-inp" data-gi="${gi}" data-ei="${ei}" data-pos="0" id="${id}_a" style="width:40px;text-align:center;font-size:1.1rem;" inputmode="numeric">
+          <span style="font-weight:700;font-size:1.2rem;">${op}</span>
+          <input class="num-input ie-inp" data-gi="${gi}" data-ei="${ei}" data-pos="1" id="${id}_b" style="width:40px;text-align:center;font-size:1.1rem;" inputmode="numeric">
+          <span style="font-weight:700;font-size:1.2rem;">=</span>
+          <input class="num-input ie-inp" data-gi="${gi}" data-ei="${ei}" data-pos="2" id="${id}_c" style="width:40px;text-align:center;font-size:1.1rem;" inputmode="numeric">
+        </div>`;
+      });
+      html += '</div></div>';
+    });
+    container.innerHTML = html;
+    container._groups = groups;
+    setLang(currentLang);
+
+    return {
+      check() {
+        let correct = 0, total = 0;
+        groups.forEach((g, gi) => {
+          // Collect all student equations for this group
+          const studentEqs = [];
+          g.equations.forEach((eq, ei) => {
+            total++;
+            const a = document.getElementById(`ie_${gi}_${ei}_a`);
+            const b = document.getElementById(`ie_${gi}_${ei}_b`);
+            const c = document.getElementById(`ie_${gi}_${ei}_c`);
+            if (!a||!b||!c) return;
+            const va = a.value.trim(), vb = b.value.trim(), vc = c.value.trim();
+            const nums = [parseInt(va), parseInt(vb), parseInt(vc)];
+            const validNums = g.valid_numbers || [];
+            // Check: all 3 numbers must be from valid_numbers set
+            const allValid = nums.every(n => !isNaN(n) && validNums.includes(n));
+            // Check arithmetic: a op b = c
+            let mathOk = false;
+            if (eq.op === '+') mathOk = nums[0] + nums[1] === nums[2];
+            else if (eq.op === '−' || eq.op === '-') mathOk = nums[0] - nums[1] === nums[2];
+            if (allValid && mathOk) {
+              correct++;
+              [a,b,c].forEach(x => x.className = 'num-input ie-inp correct');
+            } else if (va || vb || vc) {
+              [a,b,c].forEach(x => x.className = 'num-input ie-inp wrong');
+            }
+          });
+        });
+        return { score: correct, total };
+      }
+    };
+  },
+
+  // ─── MATCHSTICK PUZZLE ───
+  matchstick_puzzle(container, config) {
+    const initial = config.initial || '1+2=5';
+    const solutions = config.solutions || [];
+    const maxMoves = config.max_moves || 1;
+
+    // 7-segment digit definitions: which segments are ON
+    const DSEGS = {
+      '0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg',
+      '5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg'
+    };
+    const ALL7 = 'abcdefg'.split('');
+
+    // Segment geometry inside a digit cell (50w x 74h)
+    const DG = {
+      a:{x:10,y:0,w:28,h:7,o:'h'}, b:{x:36,y:8,w:7,h:26,o:'v'},
+      c:{x:36,y:40,w:7,h:26,o:'v'}, d:{x:10,y:67,w:28,h:7,o:'h'},
+      e:{x:1,y:40,w:7,h:26,o:'v'}, f:{x:1,y:8,w:7,h:26,o:'v'},
+      g:{x:10,y:34,w:28,h:7,o:'h'}
+    };
+    // Operator segment geometry (cell 36w x 74h)
+    const OG = {
+      h:{x:4,y:34,w:28,h:7,o:'h'}, v:{x:12,y:22,w:7,h:28,o:'v'},
+      h1:{x:4,y:28,w:28,h:7,o:'h'}, h2:{x:4,y:42,w:28,h:7,o:'h'}
+    };
+
+    // Parse equation into chars
+    const chars = [];
+    for (const ch of initial) {
+      if ('0123456789'.includes(ch)) chars.push({ch, type:'d'});
+      else if (ch==='+') chars.push({ch:'+',type:'o'});
+      else if (ch==='-'||ch==='−') chars.push({ch:'-',type:'o'});
+      else if (ch==='=') chars.push({ch:'=',type:'o'});
+    }
+
+    // Build segment state per character
+    const state = chars.map(c => {
+      if (c.type==='d') {
+        const on = DSEGS[c.ch]||'';
+        const segs = {};
+        ALL7.forEach(s => segs[s] = on.includes(s));
+        return {type:'d', segs, geo:DG, allSegs:ALL7, w:50, h:74};
+      } else {
+        const allS = c.ch==='='?['h1','h2']:['h','v'];
+        const onS = c.ch==='+'?['h','v']:c.ch==='-'?['h']:['h1','h2'];
+        const segs = {};
+        allS.forEach(s => segs[s] = onS.includes(s));
+        return {type:'o', segs, geo:OG, allSegs:allS, w:36, h:74};
+      }
+    });
+
+    let moveCount = 0;
+    let pickedSeg = null; // {ci, seg}
+    let solved = false;
+
+    function render() {
+      let html = `<div style="display:flex;align-items:center;gap:4px;justify-content:center;flex-wrap:wrap;user-select:none;">`;
+      chars.forEach((c, ci) => {
+        const st = state[ci];
+        html += `<div class="ms-char" style="position:relative;width:${st.w}px;height:${st.h}px;">`;
+        st.allSegs.forEach(seg => {
+          const g = st.geo[seg];
+          if (!g) return;
+          const on = st.segs[seg];
+          const isH = g.o==='h';
+          const cls = on ? 'ms-seg ms-on' : 'ms-seg ms-off';
+          const pick = pickedSeg && pickedSeg.ci===ci && pickedSeg.seg===seg;
+          const style = `position:absolute;left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px;border-radius:3px;cursor:pointer;transition:all 0.15s;`
+            + (on ? (pick ? 'background:#fbbf24;box-shadow:0 0 8px #f59e0b;' : 'background:#b45309;box-shadow:inset 0 1px 2px rgba(0,0,0,0.3);')
+                  : 'background:#e2e8f0;opacity:0.35;');
+          html += `<div class="${cls}" data-ci="${ci}" data-seg="${seg}" data-on="${on?1:0}" style="${style}" onpointerdown="msPick(event,${ci},'${seg}','${container.id}')"></div>`;
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+
+      // Status
+      html += `<div style="text-align:center;margin-top:0.8rem;font-size:0.88rem;">`;
+      if (solved) {
+        html += `<span style="color:var(--success);font-weight:700;">✅ Đúng rồi! Phép tính đúng: ${readEquation()}</span>`;
+      } else {
+        const eq = readEquation();
+        html += `<span style="color:var(--muted);">Phép tính hiện tại: <strong>${eq||'???'}</strong></span>`;
+        if (pickedSeg) html += `<br><span style="color:var(--warning);font-weight:600;">🔥 Đang cầm que diêm — bấm vào ô trống để đặt xuống</span>`;
+        html += `<br><span style="font-size:0.8rem; color:var(--muted);">Đã di chuyển: ${moveCount}/${maxMoves} que</span>`;
+      }
+      html += '</div>';
+
+      // Undo button
+      if (moveCount > 0 && !solved) {
+        html += `<div style="text-align:center;margin-top:0.5rem;"><button class="btn btn-sm btn-ghost" onclick="msUndo('${container.id}')">↩ Hoàn tác</button></div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    // Read current segments back to equation string
+    function readEquation() {
+      let eq = '';
+      for (let ci = 0; ci < state.length; ci++) {
+        const st = state[ci];
+        if (st.type === 'd') {
+          const active = ALL7.filter(s => st.segs[s]).sort().join('');
+          const map = {'abcdef':'0','bc':'1','abdeg':'2','abcdg':'3','bcfg':'4','acdfg':'5','acdefg':'6','abc':'7','abcdefg':'8','abcdfg':'9'};
+          eq += map[active] || '?';
+        } else if (st.allSegs.includes('h1')) {
+          // = position (uses h1, h2)
+          eq += (st.segs['h1'] && st.segs['h2']) ? '=' : '?';
+        } else {
+          // +/- position (uses h, v)
+          const hasH = st.segs['h'];
+          const hasV = st.segs['v'];
+          if (hasH && hasV) eq += '+';
+          else if (hasH && !hasV) eq += '-';
+          else eq += '?';
+        }
+      }
+      return eq;
+    }
+
+    function checkSolution() {
+      const eq = readEquation();
+      if (eq.includes('?')) return false;
+      return solutions.some(s => {
+        const norm = s.replace(/−/g,'-');
+        return eq === norm;
+      });
+    }
+
+    // History for undo
+    const history = [];
+
+    // Expose handlers globally
+    window.msPick = function(e, ci, seg, cid) {
+      if (cid !== container.id || solved) return;
+      e.preventDefault();
+      const st = state[ci];
+      const isOn = st.segs[seg];
+
+      if (pickedSeg) {
+        // Placing the picked segment
+        if (!isOn && !(pickedSeg.ci===ci && pickedSeg.seg===seg)) {
+          // Place it here
+          history.push({from:{ci:pickedSeg.ci,seg:pickedSeg.seg}, to:{ci,seg}});
+          st.segs[seg] = true;
+          moveCount++;
+          pickedSeg = null;
+          solved = checkSolution();
+        } else if (pickedSeg.ci===ci && pickedSeg.seg===seg) {
+          // Cancel: put it back
+          st.segs[seg] = true;
+          pickedSeg = null;
+        } else {
+          // Clicked another ON segment — cancel current, pick new
+          state[pickedSeg.ci].segs[pickedSeg.seg] = true;
+          if (moveCount < maxMoves) {
+            st.segs[seg] = false;
+            pickedSeg = {ci, seg};
+          } else {
+            pickedSeg = null;
+          }
+        }
+      } else {
+        // Pick up a segment
+        if (isOn && moveCount < maxMoves) {
+          st.segs[seg] = false;
+          pickedSeg = {ci, seg};
+        }
+      }
+      render();
+    };
+
+    window.msUndo = function(cid) {
+      if (cid !== container.id || history.length === 0) return;
+      const last = history.pop();
+      state[last.to.ci].segs[last.to.seg] = false;
+      state[last.from.ci].segs[last.from.seg] = true;
+      moveCount--;
+      pickedSeg = null;
+      solved = false;
+      render();
+    };
+
+    render();
+
+    return {
+      check() {
+        if (solved) return {score:1, total:1};
+        // Check if current state is a solution
+        if (checkSolution()) { solved = true; render(); return {score:1, total:1}; }
+        return {score:0, total:1};
+      }
+    };
+  },
+
+  number_pyramid(container, config) {
+    const pyramids = config.pyramids || [];
+    let html = '<div style="display:flex; flex-wrap:wrap; gap:2rem; justify-content:center;">';
+    pyramids.forEach((pyr, pi) => {
+      const rows = pyr.rows || [];
+      // Compute full answers (bottom-up sum rule)
+      const ans = rows.map(r => [...r]);
+      for (let r = 1; r < ans.length; r++) {
+        for (let c = 0; c < ans[r].length; c++) {
+          if (ans[r][c] === null) {
+            const below = ans[r - 1];
+            if (below[c] !== null && below[c + 1] !== null) {
+              ans[r][c] = below[c] + below[c + 1];
+            }
+          }
+        }
+      }
+      // Also solve downward: if parent and one child known, solve the other
+      for (let pass = 0; pass < rows.length; pass++) {
+        for (let r = ans.length - 1; r >= 1; r--) {
+          for (let c = 0; c < ans[r].length; c++) {
+            const below = ans[r - 1];
+            if (ans[r][c] !== null) {
+              if (below[c] !== null && below[c + 1] === null) below[c + 1] = ans[r][c] - below[c];
+              if (below[c] === null && below[c + 1] !== null) below[c] = ans[r][c] - below[c + 1];
+            }
+          }
+        }
+        // Re-check upward
+        for (let r = 1; r < ans.length; r++) {
+          for (let c = 0; c < ans[r].length; c++) {
+            if (ans[r][c] === null) {
+              const below = ans[r - 1];
+              if (below[c] !== null && below[c + 1] !== null) ans[r][c] = below[c] + below[c + 1];
+            }
+          }
+        }
+      }
+
+      html += `<div class="pyramid-block" data-pi="${pi}" style="display:flex; flex-direction:column; align-items:center; gap:3px;">`;
+      // Render top-to-bottom (reverse rows array)
+      const displayRows = [...rows].reverse();
+      const ansRows = [...ans].reverse();
+      displayRows.forEach((row, ri) => {
+        html += '<div style="display:flex; gap:3px;">';
+        row.forEach((cell, ci) => {
+          const origRi = rows.length - 1 - ri;
+          const answer = ansRows[ri][ci];
+          if (cell !== null) {
+            // Given cell
+            html += `<div class="pyr-cell pyr-given" style="width:44px;height:40px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);border-radius:6px;font-weight:700;font-size:1.1rem;background:#e2e8f0;">${cell}</div>`;
+          } else {
+            // Blank cell — input
+            html += `<div style="width:44px;height:40px;"><input class="pyr-input" type="text" inputmode="numeric" data-pi="${pi}" data-r="${origRi}" data-c="${ci}" data-ans="${answer}" style="width:100%;height:100%;text-align:center;font-weight:700;font-size:1.1rem;border:2px solid var(--primary);border-radius:6px;outline:none;background:var(--primary-light);" maxlength="4"></div>`;
+          }
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+
+    return {
+      check() {
+        let correct = 0, total = 0;
+        container.querySelectorAll('.pyr-input').forEach(inp => {
+          total++;
+          const userVal = inp.value.trim();
+          const ans = inp.dataset.ans;
+          if (userVal === ans) {
+            correct++;
+            inp.style.borderColor = 'var(--success)';
+            inp.style.background = 'var(--success-light)';
+          } else {
+            inp.style.borderColor = 'var(--danger)';
+            inp.style.background = 'var(--danger-light)';
+          }
+        });
+        return { score: correct, total };
+      }
+    };
+  },
+
+  true_false(container, config) {
+    const statements = config.statements || [];
+    let html = '';
+    if (config.description_vi) {
+      html += `<p style="margin-bottom:0.5rem;">${tSpan(config.description_en||'', config.description_vi)}</p>`;
+    }
+    html += '<div style="display:flex; flex-direction:column; gap:6px;">';
+    statements.forEach((st, i) => {
+      html += `<div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:2px solid var(--border); border-radius:8px;">
+        <span style="flex:1;">${tSpan(st.text_en||st.text_vi, st.text_vi)}</span>
+        <button class="btn btn-sm btn-outline tf-btn" data-idx="${i}" data-val="Đ" onclick="pickTF(this,'${container.id}')">Đ</button>
+        <button class="btn btn-sm btn-outline tf-btn" data-idx="${i}" data-val="S" onclick="pickTF(this,'${container.id}')">S</button>
+      </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    container._statements = statements;
+    container._answers = {};
+    setLang(currentLang);
+
+    return {
+      check() {
+        let correct = 0;
+        statements.forEach((st, i) => {
+          const ans = container._answers[i];
+          const btns = container.querySelectorAll(`.tf-btn[data-idx="${i}"]`);
+          const correctAns = st.answer;
+          btns.forEach(b => {
+            if (b.dataset.val === correctAns) b.style.borderColor = 'var(--success)';
+            else if (b.dataset.val === ans && ans !== correctAns) b.style.borderColor = 'var(--danger)';
+          });
+          if (ans === correctAns) correct++;
+        });
+        return { score: correct, total: statements.length };
+      }
+    };
+  },
+};
+
+function pickTF(btn, containerId) {
+  const container = document.getElementById(containerId);
+  const idx = btn.dataset.idx;
+  container.querySelectorAll(`.tf-btn[data-idx="${idx}"]`).forEach(b => {
+    b.style.background = ''; b.style.color = ''; b.classList.remove('active');
+  });
+  btn.style.background = 'var(--primary)'; btn.style.color = '#fff';
+  container._answers[idx] = btn.dataset.val;
+}
+
+// ═══════════════════════════════════════════
+// INTERACTIVE HELPERS
+// ═══════════════════════════════════════════
+function toggleHint(btn) {
+  const hint = btn.nextElementSibling;
+  hint.classList.toggle('show');
+}
+
+function pickExColor(btn, containerId) {
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  container._selectedColor = btn.dataset.color;
+}
+
+function colorSlot(slot, containerId) {
+  const container = document.getElementById(containerId);
+  const color = container._selectedColor;
+  if (color) {
+    slot.style.background = color + '33';
+    slot.style.borderColor = color;
+    slot.dataset.paintColor = color;
+    slot.classList.add('colored');
+  } else {
+    slot.style.background = '#fff';
+    slot.style.borderColor = '';
+    delete slot.dataset.paintColor;
+    slot.classList.remove('colored');
+  }
+}
+
+function matchClick(item, containerId) {
+  const container = document.getElementById(containerId);
+  const side = item.dataset.side;
+  const idx = parseInt(item.dataset.idx);
+
+  if (side === 'left') {
+    container.querySelectorAll('[data-side="left"]').forEach(el => el.classList.remove('selected'));
+    item.classList.add('selected');
+    container._selectedLeft = idx;
+  } else if (side === 'right' && container._selectedLeft !== null) {
+    container._matches[container._selectedLeft] = idx;
+    container.querySelectorAll('[data-side="left"]').forEach(el => el.classList.remove('selected'));
+    const leftEl = container.querySelector(`[data-side="left"][data-idx="${container._selectedLeft}"]`);
+    if (leftEl) leftEl.classList.add('matched');
+    item.classList.add('matched');
+    container._selectedLeft = null;
+    drawMatchLines(container);
+  }
+}
+
+function drawMatchLines(container) {
+  const svg = container.querySelector('.match-svg');
+  if (!svg) return;
+  const wrapper = container.querySelector('.match-wrapper');
+  const rect = wrapper.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  svg.innerHTML = '';
+
+  const colors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899'];
+  const matches = container._matches || {};
+  Object.entries(matches).forEach(([li, ri], idx) => {
+    const leftEl = container.querySelector(`[data-side="left"][data-idx="${li}"]`);
+    const rightEl = container.querySelector(`[data-side="right"][data-idx="${ri}"]`);
+    if (!leftEl || !rightEl) return;
+    const lr = leftEl.getBoundingClientRect();
+    const rr = rightEl.getBoundingClientRect();
+    const x1 = lr.right - rect.left;
+    const y1 = lr.top + lr.height/2 - rect.top;
+    const x2 = rr.left - rect.left;
+    const y2 = rr.top + rr.height/2 - rect.top;
+    const color = colors[idx % colors.length];
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+    line.setAttribute('x2',x2); line.setAttribute('y2',y2);
+    line.setAttribute('stroke',color); line.setAttribute('stroke-width','3');
+    line.setAttribute('stroke-linecap','round');
+    svg.appendChild(line);
+    // Dot at each end
+    [['cx',x1,'cy',y1],['cx',x2,'cy',y2]].forEach(([ax,av,ay,ayv]) => {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute(ax,av); dot.setAttribute(ay,ayv);
+      dot.setAttribute('r','5'); dot.setAttribute('fill',color);
+      svg.appendChild(dot);
+    });
+  });
+}
+
+function selectMC(label, containerId) {
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('.mc-option').forEach(o => {
+    o.classList.remove('selected');
+    o.style.borderColor = '';
+    o.style.background = '';
+  });
+  label.classList.add('selected');
+  label.style.borderColor = 'var(--primary)';
+  label.style.background = 'var(--primary-light)';
+}
+
+// ═══════════════════════════════════════════
+// SCORE & CHECKING
+// ═══════════════════════════════════════════
+function checkExercise(containerId) {
+  const entry = exerciseCheckers.find(e => e.containerId === containerId);
+  if (!entry || !entry.checker) return;
+  const result = entry.checker.check();
+  const msg = document.getElementById(containerId + '_msg');
+  const card = document.getElementById(containerId);
+  if (result.score === result.total) {
+    msg.textContent = T('🎉 Perfect!', '🎉 Hoàn hảo!');
+    msg.className = 'check-msg ok';
+    card.classList.add('correct');
+    card.classList.remove('wrong');
+  } else if (result.score > 0) {
+    msg.textContent = T(`${result.score}/${result.total} correct`, `${result.score}/${result.total} đúng`);
+    msg.className = 'check-msg nope';
+    card.classList.remove('correct');
+  } else {
+    msg.textContent = T('Try again!', 'Thử lại!');
+    msg.className = 'check-msg nope';
+    card.classList.add('wrong');
+    card.classList.remove('correct');
+  }
+  updateScore();
+}
+
+function checkAll() {
+  exerciseCheckers.forEach(e => checkExercise(e.containerId));
+}
+
+function resetExercise(containerId) {
+  const entry = exerciseCheckers.find(e => e.containerId === containerId);
+  if (!entry) return;
+  // Find the exercise data and re-render
+  const bodyEl = document.getElementById(containerId + '_body');
+  if (!bodyEl) return;
+  const exIdx = exerciseCheckers.indexOf(entry);
+  const exercises = window._currentExercises || [];
+  const ex = exercises.find((e, i) => {
+    const sec = e.section || 'practice';
+    return `ex_${sec}_${i}` === containerId;
+  });
+  if (ex) {
+    const renderer = exerciseRenderers[ex.exercise_type];
+    if (renderer) {
+      const checker = renderer(bodyEl, ex.config, ex);
+      entry.checker = checker;
+    }
+  }
+  // Clear status
+  const msg = document.getElementById(containerId + '_msg');
+  if (msg) { msg.textContent = ''; msg.className = 'check-msg'; }
+  const card = document.getElementById(containerId);
+  if (card) { card.classList.remove('correct', 'wrong'); }
+  updateScore();
+}
+
+function updateScore() {
+  let totalScore = 0, totalItems = 0;
+  exerciseCheckers.forEach(e => {
+    if (e.checker) {
+      // Don't re-check, just tally from DOM
+      const card = document.getElementById(e.containerId);
+      const msg = document.getElementById(e.containerId + '_msg');
+      if (msg && msg.classList.contains('ok')) {
+        // Already checked — count from last check result is tricky without storing
+        // For now, re-check silently
+      }
+    }
+  });
+  // Simple: count correct cards
+  const correctCards = document.querySelectorAll('.ex-card.correct').length;
+  const totalCards = exerciseCheckers.length;
+  document.getElementById('scoreText').textContent = `${correctCards} / ${totalCards}`;
+  const pct = totalCards > 0 ? (correctCards / totalCards * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+// ═══════════════════════════════════════════
+// TTS (Text-to-Speech)
+// ═══════════════════════════════════════════
+function speakText(text) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = currentLang === 'vi' ? 'vi-VN' : 'en-US';
+  u.rate = 0.85;
+  window.speechSynthesis.speak(u);
+}
+
+// ═══════════════════════════════════════════
+// ADMIN: EXERCISE EDITOR
+// ═══════════════════════════════════════════
+let editingExerciseId = null;
+
+async function openEditor(exerciseId, lop, tuan) {
+  editingExerciseId = exerciseId;
+  const form = document.getElementById('editorForm');
+
+  const exerciseTypes = [
+    { value: 'fill_in', label: 'Fill in the blank / Điền số' },
+    { value: 'coloring', label: 'Coloring / Tô màu' },
+    { value: 'matching', label: 'Matching / Nối' },
+    { value: 'table_fill', label: 'Table fill / Điền bảng' },
+    { value: 'word_problem', label: 'Word problem / Bài toán có lời văn' },
+    { value: 'multiple_choice', label: 'Multiple choice / Trắc nghiệm' },
+    { value: 'image_exercise', label: 'Image exercise / Bài tập có hình' },
+  ];
+  const sections = [
+    { value: 'kham_pha', label: 'A. Khám phá' },
+    { value: 'hoat_dong', label: 'B. Hoạt động' },
+    { value: 'cung_co', label: 'C. Củng cố' },
+    { value: 'toan_vui', label: 'D. Toán vui' },
+    { value: 'practice', label: 'Luyện tập' },
+  ];
+
+  let data = {
+    lop: lop || currentGrade,
+    tuan: tuan || currentWeek || 1,
+    section: 'practice',
+    sort_order: 0,
+    exercise_type: 'fill_in',
+    title_vi: '', title_en: '',
+    instruction_vi: '', instruction_en: '',
+    hint_vi: '', hint_en: '',
+    config: {},
+    yccd_ids: '',
+  };
+
+  if (exerciseId) {
+    const res = await fetch(`/api/exercises/${exerciseId}`, { headers: authHeaders() });
+    data = await res.json();
+  }
+
+  form.innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group">
+        <label>Lớp</label>
+        <input class="form-input" id="ed_lop" type="number" min="1" max="5" value="${data.lop}">
+      </div>
+      <div class="form-group">
+        <label>Tuần</label>
+        <input class="form-input" id="ed_tuan" type="number" min="1" max="37" value="${data.tuan}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Section</label>
+      <select class="form-input" id="ed_section">
+        ${sections.map(s => `<option value="${s.value}" ${s.value===data.section?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Exercise Type</label>
+      <select class="form-input" id="ed_type">
+        ${exerciseTypes.map(t => `<option value="${t.value}" ${t.value===data.exercise_type?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group">
+        <label>Tiêu đề (VI)</label>
+        <input class="form-input" id="ed_title_vi" value="${escHtml(data.title_vi||'')}">
+      </div>
+      <div class="form-group">
+        <label>Title (EN)</label>
+        <input class="form-input" id="ed_title_en" value="${escHtml(data.title_en||'')}">
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group">
+        <label>Hướng dẫn (VI)</label>
+        <textarea class="form-input" id="ed_instr_vi" rows="2">${escHtml(data.instruction_vi||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Instruction (EN)</label>
+        <textarea class="form-input" id="ed_instr_en" rows="2">${escHtml(data.instruction_en||'')}</textarea>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+      <div class="form-group">
+        <label>Gợi ý (VI)</label>
+        <input class="form-input" id="ed_hint_vi" value="${escHtml(data.hint_vi||'')}">
+      </div>
+      <div class="form-group">
+        <label>Hint (EN)</label>
+        <input class="form-input" id="ed_hint_en" value="${escHtml(data.hint_en||'')}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Config (JSON)</label>
+      <textarea class="form-input" id="ed_config" rows="6" style="font-family:monospace;">${JSON.stringify(data.config || {}, null, 2)}</textarea>
+    </div>
+    <div class="form-group">
+      <label>YCCĐ IDs (comma-separated)</label>
+      <input class="form-input" id="ed_yccd" value="${escHtml(data.yccd_ids||'')}">
+    </div>
+    <div class="form-group">
+      <label>Sort order</label>
+      <input class="form-input" id="ed_sort" type="number" value="${data.sort_order||0}">
+    </div>
+  `;
+  document.getElementById('editorModal').classList.remove('hidden');
+}
+
+function closeEditor() {
+  document.getElementById('editorModal').classList.add('hidden');
+  editingExerciseId = null;
+}
+
+async function saveExercise() {
+  let config;
+  try {
+    config = JSON.parse(document.getElementById('ed_config').value);
+  } catch (e) {
+    alert('Invalid JSON in config: ' + e.message);
+    return;
+  }
+
+  const payload = {
+    lop: parseInt(document.getElementById('ed_lop').value),
+    tuan: parseInt(document.getElementById('ed_tuan').value),
+    section: document.getElementById('ed_section').value,
+    sort_order: parseInt(document.getElementById('ed_sort').value),
+    exercise_type: document.getElementById('ed_type').value,
+    title_vi: document.getElementById('ed_title_vi').value,
+    title_en: document.getElementById('ed_title_en').value,
+    instruction_vi: document.getElementById('ed_instr_vi').value,
+    instruction_en: document.getElementById('ed_instr_en').value,
+    hint_vi: document.getElementById('ed_hint_vi').value,
+    hint_en: document.getElementById('ed_hint_en').value,
+    config: config,
+    yccd_ids: document.getElementById('ed_yccd').value,
+  };
+
+  try {
+    let res;
+    if (editingExerciseId) {
+      res = await fetch(`/api/admin/exercises/${editingExerciseId}`, {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch('/api/admin/exercises', {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(payload)
+      });
+    }
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'Error'); return; }
+    closeEditor();
+    openWeek(currentWeek); // Reload
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function deleteExercise(id) {
+  if (!confirm(T('Delete this exercise?', 'Xóa bài tập này?'))) return;
+  try {
+    await fetch(`/api/admin/exercises/${id}`, { method: 'DELETE', headers: authHeaders() });
+    openWeek(currentWeek);
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+function previewExercise() {
+  alert(T('Preview: Save first, then view the exercise.', 'Xem trước: Lưu trước, rồi xem bài tập.'));
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+checkAuth();
+const savedLang = localStorage.getItem('lang');
+if (savedLang) setLang(savedLang);
+else setLang('vi');
+
+// Set active grade tab from user profile
+selectGrade(currentUser ? (currentUser.lop || 1) : 1);
+</script>
+</body>
+</html>

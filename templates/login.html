@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đăng nhập — Toán Tiểu Học</title>
+<link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="logo">📐✏️📏</div>
+    <h1><span class="t" data-en="Math Practice" data-vi="Toán Tiểu Học"></span></h1>
+    <p class="subtitle"><span class="t" data-en="Interactive Math Worksheets" data-vi="Phiếu bài tập tương tác"></span></p>
+
+    <!-- Language toggle -->
+    <div style="text-align:center; margin-bottom:1rem;">
+      <button class="lang-btn" onclick="setLang('en')" id="btnEn" title="English">🇬🇧</button>
+      <button class="lang-btn active" onclick="setLang('vi')" id="btnVi" title="Tiếng Việt">🇻🇳</button>
+    </div>
+
+    <!-- Login form -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label><span class="t" data-en="Username" data-vi="Tên đăng nhập"></span></label>
+        <input type="text" class="form-input" id="loginUser" placeholder="admin / hocsinh" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label><span class="t" data-en="Password" data-vi="Mật khẩu"></span></label>
+        <input type="password" class="form-input" id="loginPass" placeholder="••••••" autocomplete="current-password">
+      </div>
+      <div id="loginError" class="form-error" style="display:none;"></div>
+      <button class="btn btn-primary btn-lg" style="width:100%; margin-top:0.5rem; justify-content:center;" onclick="doLogin()">
+        <span class="t" data-en="Log in" data-vi="Đăng nhập"></span>
+      </button>
+      <p class="form-toggle">
+        <span class="t" data-en="No account?" data-vi="Chưa có tài khoản?"></span>
+        <a onclick="showRegister()"><span class="t" data-en="Register" data-vi="Đăng ký"></span></a>
+      </p>
+    </div>
+
+    <!-- Register form -->
+    <div id="registerForm" class="hidden">
+      <div class="form-group">
+        <label><span class="t" data-en="Display name" data-vi="Tên hiển thị"></span></label>
+        <input type="text" class="form-input" id="regName" placeholder="Nguyễn Văn A">
+      </div>
+      <div class="form-group">
+        <label><span class="t" data-en="Username" data-vi="Tên đăng nhập"></span></label>
+        <input type="text" class="form-input" id="regUser" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label><span class="t" data-en="Password" data-vi="Mật khẩu"></span></label>
+        <input type="password" class="form-input" id="regPass" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label><span class="t" data-en="Grade" data-vi="Lớp"></span></label>
+        <select class="form-input" id="regGrade">
+          <option value="1">Lớp 1</option>
+          <option value="2">Lớp 2</option>
+          <option value="3">Lớp 3</option>
+          <option value="4">Lớp 4</option>
+          <option value="5">Lớp 5</option>
+        </select>
+      </div>
+      <div id="regError" class="form-error" style="display:none;"></div>
+      <button class="btn btn-success btn-lg" style="width:100%; margin-top:0.5rem; justify-content:center;" onclick="doRegister()">
+        <span class="t" data-en="Register" data-vi="Đăng ký"></span>
+      </button>
+      <p class="form-toggle">
+        <span class="t" data-en="Already have an account?" data-vi="Đã có tài khoản?"></span>
+        <a onclick="showLogin()"><span class="t" data-en="Log in" data-vi="Đăng nhập"></span></a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentLang = 'vi';
+
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.t').forEach(el => {
+    const txt = el.dataset[lang];
+    if (txt !== undefined) el.textContent = txt;
+  });
+  document.getElementById('btnEn').classList.toggle('active', lang === 'en');
+  document.getElementById('btnVi').classList.toggle('active', lang === 'vi');
+  document.documentElement.lang = lang;
+}
+
+function T(en, vi) { return currentLang === 'vi' ? vi : en; }
+
+function showRegister() {
+  document.getElementById('loginForm').classList.add('hidden');
+  document.getElementById('registerForm').classList.remove('hidden');
+}
+function showLogin() {
+  document.getElementById('registerForm').classList.add('hidden');
+  document.getElementById('loginForm').classList.remove('hidden');
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+
+  if (!username || !password) {
+    errEl.textContent = T('Please fill in all fields', 'Vui lòng điền đầy đủ');
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.detail || T('Login failed', 'Đăng nhập thất bại');
+      errEl.style.display = 'block';
+      return;
+    }
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('lang', currentLang);
+    window.location.href = '/';
+  } catch (e) {
+    errEl.textContent = T('Connection error', 'Lỗi kết nối');
+    errEl.style.display = 'block';
+  }
+}
+
+async function doRegister() {
+  const display_name = document.getElementById('regName').value.trim();
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  const lop = parseInt(document.getElementById('regGrade').value);
+  const errEl = document.getElementById('regError');
+  errEl.style.display = 'none';
+
+  if (!display_name || !username || !password) {
+    errEl.textContent = T('Please fill in all fields', 'Vui lòng điền đầy đủ');
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, password, display_name, lop})
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.detail || T('Registration failed', 'Đăng ký thất bại');
+      errEl.style.display = 'block';
+      return;
+    }
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('lang', currentLang);
+    window.location.href = '/';
+  } catch (e) {
+    errEl.textContent = T('Connection error', 'Lỗi kết nối');
+    errEl.style.display = 'block';
+  }
+}
+
+// Enter key support
+document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('regPass').addEventListener('keydown', e => { if(e.key==='Enter') doRegister(); });
+
+// Check if already logged in
+if (localStorage.getItem('token')) {
+  window.location.href = '/';
+}
+
+// Init language
+const savedLang = localStorage.getItem('lang');
+if (savedLang) setLang(savedLang);
+else setLang('vi');
+</script>
+</body>
+</html>
