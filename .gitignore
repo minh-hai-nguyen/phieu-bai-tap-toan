@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 webapp.db
 *.db-journal
+static/_tmp/
