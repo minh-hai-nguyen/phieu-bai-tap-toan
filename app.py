@@ -13,9 +13,38 @@ from routers import auth_router, curriculum_router, exercise_router, admin_route
 
 from contextlib import asynccontextmanager
 
+def ensure_default_users():
+    """Create or update default admin and student users on every startup."""
+    from db import get_webapp_db
+    from auth import hash_password
+    conn = get_webapp_db()
+    cur = conn.cursor()
+    # Admin user — always update hash to match current SECRET_KEY
+    cur.execute("SELECT id FROM users WHERE username='admin'")
+    if cur.fetchone():
+        cur.execute("UPDATE users SET password_hash=? WHERE username='admin'",
+                    (hash_password("admin123"),))
+    else:
+        cur.execute(
+            "INSERT INTO users (username, password_hash, display_name, role) VALUES (?,?,?,?)",
+            ("admin", hash_password("admin123"), "Quản trị viên", "admin"))
+    # Demo student
+    cur.execute("SELECT id FROM users WHERE username='hocsinh'")
+    if cur.fetchone():
+        cur.execute("UPDATE users SET password_hash=? WHERE username='hocsinh'",
+                    (hash_password("123456"),))
+    else:
+        cur.execute(
+            "INSERT INTO users (username, password_hash, display_name, role, lop) VALUES (?,?,?,?,?)",
+            ("hocsinh", hash_password("123456"), "Học sinh Demo", "student", 1))
+    conn.commit()
+    conn.close()
+
+
 @asynccontextmanager
 async def lifespan(app):
     init_webapp_db()
+    ensure_default_users()
     yield
 
 app = FastAPI(title="Toán Tiểu Học — Math Education", version="1.0", lifespan=lifespan)
