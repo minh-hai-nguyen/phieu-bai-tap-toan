@@ -77,6 +77,27 @@ async def admin_page():
         return f.read()
 
 
+@app.get("/api/health")
+async def health():
+    """Health check + version to verify deployment."""
+    from db import get_webapp_db
+    conn = get_webapp_db()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) as cnt FROM users")
+    user_count = cur.fetchone()["cnt"]
+    cur.execute("SELECT username, role FROM users")
+    users = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return {"version": "v3", "users": users, "user_count": user_count}
+
+
+@app.get("/api/fix-admin")
+async def fix_admin():
+    """One-time fix: reset admin password hash to match current SECRET_KEY."""
+    ensure_default_users()
+    return {"status": "ok", "message": "Admin and hocsinh passwords reset"}
+
+
 if __name__ == "__main__":
     import uvicorn
     print("=" * 50)
